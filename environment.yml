@@ -1,0 +1,38 @@
+# Core environment. Create with:  mamba env create -f environment.yml
+#
+# PyTorch is deliberately NOT listed here. conda-forge's `pytorch` +
+# `pytorch-cuda` combo silently resolved to a CPU-only build on this
+# project (channel priority between `pytorch` and `conda-forge` picked
+# the conda-forge cpu_mkl variant despite the cuda pin) — verified on
+# 2026-09-16. Install it via pip afterwards instead (see README.md
+# "Environment setup" for the exact command and how to pick the right
+# CUDA wheel tag). GNN stack (PyTorch Geometric) and the connectomics
+# clients (navis, fafbseg, caveclient, banc) are also installed as
+# separate pip steps after this — same reasoning: one flaky package
+# shouldn't be able to break the whole env solve.
+name: fruresidual
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - pyarrow
+  - scikit-learn
+  - xgboost
+  - lightgbm
+  - networkx
+  - python-igraph
+  - leidenalg
+  - statsmodels
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - pytest
+  - python-dotenv
+  - pyyaml
+  - pip:
+      - neuprint-python
+      - -e .

@@ -1,0 +1,37 @@
+# Data (large connectome files — never commit, fetched via scripts/download_*.py)
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+*.feather
+*.h5
+*.hdf5
+
+# Secrets — tokens live here, never in git
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.ipynb_checkpoints/
+
+# Conda / venv
+.venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Claude Code session state
+.claude/

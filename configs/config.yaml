@@ -1,0 +1,21 @@
+paths:
+  data_raw: data/raw
+  data_interim: data/interim
+  data_processed: data/processed
+
+neuprint:
+  server: neuprint.janelia.org
+  dataset: "male-cns:v1.0"
+
+flywire:
+  annotations_repo: "flyconnectome/flywire_annotations"
+  annotations_file: "supplemental_files/Supplemental_file1_neuron_annotations.tsv"
+
+banc:
+  meta_feather: "banc_888_meta.feather"
+
+# Phase 0 gate: how per-type dimorphism aggregates onto per-neuron fru/dsx.
+# One of: "high_confidence_only" | "any_positive" | "majority"
+# See docs/project_plan.md section (e) risk #2 (granularity mismatch) —
+# run the sensitivity analysis across all three before trusting the gate.
+fru_dsx_aggregation: "high_confidence_only"
