@@ -15,10 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fruresidual.config import load_config  # noqa: E402
 
 BASE_URL = "https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome"
+# Small-to-large order on purpose: the two small files are all Phase 0
+# needs, so they should land first. connectome-weights (~1GB) is only
+# needed for Phase 2's GNN and can crawl along after on a slow connection.
 FILES = [
-    "connectome-weights-male-cns-v1.0-minconf-0.5.feather",
     "body-annotations-male-cns-v1.0-minconf-0.5.feather",
     "body-neurotransmitters-male-cns-v1.0.feather",
+    "connectome-weights-male-cns-v1.0-minconf-0.5.feather",
 ]
 
 

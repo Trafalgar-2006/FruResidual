@@ -1,7 +1,12 @@
+# Data lives OUTSIDE the repo (and outside OneDrive) on purpose: this repo
+# is under OneDrive\Desktop, and OneDrive's sync filter driver throttles
+# large binary writes to a crawl (~50KB/s observed on the 1GB connectome
+# file). C:/FruResidualData is a plain local folder OneDrive never touches.
+# If you move machines, just update these three paths.
 paths:
-  data_raw: data/raw
-  data_interim: data/interim
-  data_processed: data/processed
+  data_raw: C:/FruResidualData/raw
+  data_interim: C:/FruResidualData/interim
+  data_processed: C:/FruResidualData/processed
 
 neuprint:
   server: neuprint.janelia.org

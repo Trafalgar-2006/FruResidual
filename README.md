@@ -79,8 +79,27 @@ CUDA 13.3). Steps below are exactly what was run.
   degree-preserving null-model reruns for significance testing, and
   Phase-4 cross-dataset validation runs.
 
+## Data
+
+Fetched separately from the repo, into `C:/FruResidualData` (see
+"Environment setup" note above — kept off OneDrive so large downloads
+aren't throttled). Get it with:
+```
+python scripts/download_male_cns.py   # MaleCNS bulk files, no auth needed
+```
+The FlyWire `flywire_annotations` table is fetched on first use by
+`fruresidual.data.flywire_client.load_flywire_annotations` (also cached
+into the same directory).
+
 ## Status
 
-Environment is set up and verified (GPU visible, all packages import,
-`pytest` passes). Phase 0 (the kill-gate) hasn't started yet — see
-docs/project_plan.md section (d) for the phase-by-phase plan.
+**Phase 0 (kill-gate): ALIVE.** Run `python scripts/run_phase0.py` to
+reproduce. Full writeup: [docs/phase0_results.md](docs/phase0_results.md).
+Headline: 38.9-45.6% of dimorphic/male-specific MaleCNS neurons have no
+fru/dsx annotation (robust across both aggregation rules), and that
+residual is ~77-80% concentrated in just two superclasses (optic-lobe and
+central-brain intrinsic neurons) rather than spread evenly — non-trivial
+and structured, so the project proceeds to Phase 1.
+
+Next: Phase 1, the unexplained-dimorphism atlas — see
+docs/project_plan.md section (d).
