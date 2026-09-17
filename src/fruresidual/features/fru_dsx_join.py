@@ -19,6 +19,7 @@ from typing import Literal
 import pandas as pd
 
 from fruresidual.config import Config
+from fruresidual.eval.enrichment import category_enrichment
 
 AggregationRule = Literal["high_confidence_only", "any_positive"]
 
@@ -71,11 +72,23 @@ def build_dimorphism_crosstab(df: pd.DataFrame, rule: AggregationRule) -> pd.Dat
 
 
 def phase0_gate_summary(
-    df: pd.DataFrame, rule: AggregationRule, concentration_threshold: float = 0.5
+    df: pd.DataFrame,
+    rule: AggregationRule,
+    alpha: float = 0.05,
+    min_odds_ratio: float = 2.0,
+    min_residual: int = 100,
 ) -> dict:
     """Computes the kill-gate verdict: is the unexplained residual both
-    non-trivial in size AND structured (concentrated in a few superclasses,
-    rather than spread evenly)?
+    non-trivial in size AND structured?
+
+    "Structured" is decided by a real statistical test, not an arbitrary
+    threshold: Fisher's exact test per superclass, residual vs. the full
+    dimorphic/male-specific population it was drawn from, Benjamini-Hochberg
+    corrected across superclasses (fruresidual.eval.enrichment). At least
+    one superclass must be significantly over-represented (p_adj < alpha)
+    with a non-trivial effect size (odds ratio >= min_odds_ratio) — the
+    same method the plan specifies for Phase 3's enrichment analysis,
+    applied here at a lighter scope just to ground the gate decision.
     """
     dimorphic = df[df["dimorphism"].isin(DIMORPHIC_CATEGORIES)].copy()
     dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, rule)
@@ -83,19 +96,21 @@ def phase0_gate_summary(
 
     n_dimorphic = len(dimorphic)
     n_residual = len(residual)
-    superclass_counts = residual["superclass"].value_counts()
-    top2_concentration = float(
-        superclass_counts.head(2).sum() / n_residual if n_residual else 0.0
+
+    enrichment = category_enrichment(
+        residual["superclass"], dimorphic["superclass"], alpha=alpha, min_odds_ratio=min_odds_ratio
     )
-    structured = top2_concentration >= concentration_threshold
+    significant = enrichment[enrichment["significant"]]
+    structured = len(significant) > 0
 
     return {
         "rule": rule,
         "n_dimorphic_or_male_specific": int(n_dimorphic),
         "n_residual_unexplained": int(n_residual),
         "pct_residual": round(100 * n_residual / n_dimorphic, 1) if n_dimorphic else 0.0,
-        "top_superclasses": {k: int(v) for k, v in superclass_counts.head(5).items()},
-        "top2_superclass_concentration": round(top2_concentration, 3),
+        "enriched_superclasses": significant[
+            ["category", "n_in_subset", "pct_of_subset", "odds_ratio", "p_adj"]
+        ].to_dict("records"),
         "structured": bool(structured),
-        "verdict": "ALIVE" if (n_residual >= 100 and structured) else "INCONCLUSIVE",
+        "verdict": "ALIVE" if (n_residual >= min_residual and structured) else "INCONCLUSIVE",
     }

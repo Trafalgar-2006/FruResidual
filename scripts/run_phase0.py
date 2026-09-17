@@ -41,6 +41,7 @@ def main() -> None:
     both_alive = all(r["verdict"] == "ALIVE" for r in results.values())
     print(f"\n{'='*60}\nGATE DECISION (robust across both aggregation rules): "
           f"{'ALIVE' if both_alive else 'INCONCLUSIVE'}\n{'='*60}")
+    return results
 
 
 if __name__ == "__main__":

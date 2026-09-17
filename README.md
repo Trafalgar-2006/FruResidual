@@ -97,9 +97,10 @@ into the same directory).
 reproduce. Full writeup: [docs/phase0_results.md](docs/phase0_results.md).
 Headline: 38.9-45.6% of dimorphic/male-specific MaleCNS neurons have no
 fru/dsx annotation (robust across both aggregation rules), and that
-residual is ~77-80% concentrated in just two superclasses (optic-lobe and
-central-brain intrinsic neurons) rather than spread evenly — non-trivial
-and structured, so the project proceeds to Phase 1.
+residual is statistically enriched (Fisher's exact, BH-corrected) in
+optic-lobe-intrinsic neurons — essentially all of which lack a fru/dsx
+call — plus smaller enrichment in ascending/descending VNC-connector
+neurons. Non-trivial and structured, so the project proceeds to Phase 1.
 
 Next: Phase 1, the unexplained-dimorphism atlas — see
 docs/project_plan.md section (d).
