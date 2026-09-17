@@ -32,7 +32,30 @@ the overall central-brain figure from Phase 0. Optic-lobe neuropils (ME,
 LO, Optic) are **95-100% residual** — essentially every dimorphic
 optic-lobe synapse belongs to a fru/dsx-unannotated neuron. VNC, the
 gnathal ganglion (GNG, feeding-related), and the abdominal neuromere
-tract (ANm) sit in between at 70-76%. This is a real, sharp regional
+tract (ANm) sit in between at 70-76%.
+
+**Caveat on the table above**: neuPrint's ROI hierarchy is nested, not
+disjoint — a single synapse is counted under both its fine ROI (e.g.
+`SIP(R)`) and parent aggregate ROI (`CentralBrain`) simultaneously.
+Checked directly: the named central-brain sub-regions above sum to
+15.25M synapse-weight, which *exceeds* `CentralBrain`'s own total
+(11.74M) — confirming real overlap, not an accounting quirk. Each row's
+`% residual` is still a valid, self-contained ratio (residual /
+(residual+explained) *within that one ROI*), so every percentage cited
+here is trustworthy on its own. What is **not** valid is treating the
+rows as disjoint pieces of one whole and comparing their raw magnitudes
+against each other as if they summed to something meaningful — they
+don't, because of the nesting. Read this as "%, region by region," not
+as a partition of a total.
+
+`synweight` (the innervation-strength measure used throughout) is
+neuPrint's own weighted composite of pre/post/downstream/upstream
+synapse counts, not a raw synapse tally — checked directly: one sample
+ROI had pre=134, post=326 (sum 460) but synweight=1342, roughly 3x
+higher. Everywhere in this doc "% residual" means "% of synapse
+*weight*," consistently — never raw synapse count.
+
+This is a real, sharp regional
 gradient, not an artifact of one specific `ol_intrinsic` label — see
 `reports/figures/phase1/roi_residual_by_pct.png` for the full ranked
 view (dominated by LOP/ME/Optic/mVAC/AbNT once the ~4,386 fine

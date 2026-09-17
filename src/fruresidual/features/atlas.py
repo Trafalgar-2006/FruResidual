@@ -47,6 +47,18 @@ def roi_residual_summary(roi_long: pd.DataFrame, residual_body_ids: set[int]) ->
     parent neuropil's residual rate at far higher cardinality and add no
     information over the coarse neuropil names (e.g. "ME(R)", "AL(R)")
     they subdivide.
+
+    CAUTION: neuPrint's remaining ROI names are still a nested hierarchy,
+    not disjoint regions -- e.g. a synapse in "SIP(R)" is also counted
+    under the parent aggregate "CentralBrain". Verified directly: summing
+    named central-brain sub-regions gives ~1.3x "CentralBrain"'s own
+    total. Each row's pct_residual is still a valid ratio computed within
+    that one ROI; don't sum/compare raw synweight totals ACROSS rows as
+    if they were disjoint parts of a whole, since they aren't.
+
+    `synweight` is neuPrint's own weighted composite of
+    pre/post/downstream/upstream synapse counts, not a raw synapse
+    tally -- roughly 2-3x the simple pre+post sum in spot checks.
     """
     is_fine_grained = roi_long["roi"].str.contains("_col_|_layer_|-", regex=True)
     roi_long = roi_long[~is_fine_grained].copy()
