@@ -12,9 +12,10 @@ Full plan, data sources, and background reading: [docs/project_plan.md](docs/pro
 ```
 configs/            config.yaml — paths, dataset ids, Phase-0 aggregation rule
 data/                raw/ interim/ processed/ — gitignored, fetched via scripts/
-docs/                project_plan.md — the full research plan
+docs/                project_plan.md, phaseN_results.md — plan + per-phase writeups
 notebooks/           one notebook per phase; thin, calls into src/fruresidual
-scripts/             standalone data-download / one-off scripts
+reports/figures/     small PNG deliverables per phase — tracked in git, unlike data/
+scripts/             run_phaseN.py, download_*.py — standalone entry points
 src/fruresidual/     the actual package — data clients, features, models, eval, viz
 tests/               pytest
 ```
@@ -102,5 +103,18 @@ optic-lobe-intrinsic neurons — essentially all of which lack a fru/dsx
 call — plus smaller enrichment in ascending/descending VNC-connector
 neurons. Non-trivial and structured, so the project proceeds to Phase 1.
 
-Next: Phase 1, the unexplained-dimorphism atlas — see
-docs/project_plan.md section (d).
+**Phase 1 (atlas): done.** Run `python scripts/run_phase1.py` to
+reproduce (needs `NEUPRINT_TOKEN` for a targeted, fast ROI query — not a
+full-connectome pull). Full writeup:
+[docs/phase1_results.md](docs/phase1_results.md). Figures:
+[reports/figures/phase1/](reports/figures/phase1/). Headline: the
+residual isn't just "optic lobe" — it's a peripheral-sensorimotor
+pattern. Optic-lobe neuropils (ME, LO) are 95-100% fru/dsx-unexplained;
+VNC/gnathal-ganglion/abdominal-tract regions sit at 70-76%; central-brain
+integrative neuropils (SIP, AVLP, SNP) sit at 14-32%, closely explained.
+Same pattern confirmed independently via superclass and soma-neuromere
+enrichment. Doesn't yet distinguish real biology from an fru/dsx
+annotation-coverage bias toward the central brain (the plan already
+flags ~75% of annotation effort landed there) — that's Phase 3's job.
+
+Next: Phase 2, the predictive model — see docs/project_plan.md section (d).
