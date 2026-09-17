@@ -26,10 +26,30 @@ Both rules pass the gate criterion (residual is both non-trivial in size
 and structured, not spread evenly across superclasses) — **verdict: ALIVE**,
 robust to the aggregation-rule sensitivity check the plan called for.
 
-Sanity check against the published number: the *Cell* 2026 paper reports
-39.7% of dimorphic neurons are fru−/dsx− centrally; our `any_positive`
-figure (38.9%) lands almost exactly on that, which is a good sign the
-pipeline is measuring the same thing the paper measured.
+### Sanity check against the published number — corrected
+
+An earlier version of this doc claimed our 38.9% (whole-CNS) figure
+"matches" the paper's cited 39.7% central-brain figure. **That comparison
+was wrong** — it compared different populations (whole CNS vs.
+central-brain-only). Redone properly, restricted to `cb_*` superclasses
+only (`cb_intrinsic`, `cb_sensory`, `cb_motor`, `cb_endocrine`,
+`cb_efferent`; 37,216 of 165,122 traced neurons):
+
+| Rule | central-brain dimorphic/male-specific | unexplained | % unexplained |
+|---|---|---|---|
+| any_positive | 1,553 | 217 | 14.0% |
+| high_confidence_only | 1,553 | 371 | 23.9% |
+
+This does **not** match the paper's 39.7% either — it's substantially
+lower. The gate verdict is unaffected (central-brain-only residual is
+still non-trivial and still ~99% concentrated in `cb_intrinsic`, so still
+ALIVE), but the specific match to the paper's number does not hold under
+correct scoping, and the reason for the gap is currently unknown — could
+be a different neuron-count/confidence threshold, a different
+"dimorphic" grouping than ours, or a genuine difference between this
+public data release and what the paper's own internal figures used.
+Worth resolving before citing any percentage against the paper's number
+in a writeup, but it does not change what to do next.
 
 ## An early, unplanned lead
 
