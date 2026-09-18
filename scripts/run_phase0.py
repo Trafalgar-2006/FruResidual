@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.features.fru_dsx_join import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.features.fru_dsx_join import (
     build_dimorphism_crosstab,
     load_male_cns_annotations,
     phase0_gate_summary,

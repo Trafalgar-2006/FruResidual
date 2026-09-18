@@ -14,14 +14,14 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.data.flywire_client import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.data.flywire_client import (
     fetch_flywire_type_profiles,
     load_flywire_annotations,
 )
-from fruresidual.data.neuprint_client import fetch_partner_superclass_profile  # noqa: E402
-from fruresidual.features.fru_dsx_join import load_male_cns_annotations  # noqa: E402
-from fruresidual.features.rewiring import (  # noqa: E402
+from fruresidual.data.neuprint_client import fetch_partner_superclass_profile
+from fruresidual.features.fru_dsx_join import load_male_cns_annotations
+from fruresidual.features.rewiring import (
     cosine_distance,
     malecns_superclass_to_shared,
     profile_vector,

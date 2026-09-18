@@ -75,6 +75,26 @@ central premise: the fru/dsx-unexplained residual reflects real,
 independently-replicable sex differences, not an artifact specific to
 the FlyWire comparison Phase 0-3 were built on.
 
+## Two robustness checks on the headline number (added on audit, 2026-09-18)
+
+BANC's `sexually_dimorphic` column has five states, and two of them are
+easy to conflate: `isomorphic` (assessed, judged not dimorphic) and
+`None` (never assessed — 70,121 of BANC's 188,508 neurons). The analysis
+counts both as "not confirmed", which would understate concordance if
+many matched neurons were simply unassessed. Checked directly: of the
+134 matched MaleCNS-dimorphic neurons, **115 are confirmed dimorphic, 18
+are genuine disagreements (BANC says isomorphic), and only 1 is
+unassessed.** Restricting to assessed-only neurons moves recall from
+85.8% to 86.5% — immaterial, so the headline number stands as reported.
+
+Second: BANC ships a `proofread` flag, and unproofread reconstructions
+carry less reliable annotations. Of the 13,942 matched neurons 170 are
+unproofread, but **all 134 of the MaleCNS-dimorphic matches the finding
+rests on are `proofread=TRUE`** — so no reconstruction-quality caveat
+applies to the core result. Splitting residual vs. explained on
+assessed-only neurons leaves the conclusion unchanged (87.6% vs. 82.1%,
+still not significantly different).
+
 ## Per-superclass breakdown — directionally consistent, but underpowered
 
 | superclass | n residual matched | % confirmed | n explained matched | % confirmed | p |

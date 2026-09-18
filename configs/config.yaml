@@ -12,15 +12,19 @@ neuprint:
   server: neuprint.janelia.org
   dataset: "male-cns:v1.0"
 
-flywire:
-  annotations_repo: "flyconnectome/flywire_annotations"
-  annotations_file: "supplemental_files/Supplemental_file1_neuron_annotations.tsv"
+# FlyWire and BANC source URLs are not configurable here on purpose: each
+# client module owns its own URL as a documented constant (with provenance
+# notes on how it was verified), since these are fixed upstream locations
+# rather than per-environment settings.
 
-banc:
-  meta_feather: "banc_888_meta.feather"
-
-# Phase 0 gate: how per-type dimorphism aggregates onto per-neuron fru/dsx.
-# One of: "high_confidence_only" | "any_positive" | "majority"
-# See docs/project_plan.md section (e) risk #2 (granularity mismatch) —
-# run the sensitivity analysis across all three before trusting the gate.
-fru_dsx_aggregation: "high_confidence_only"
+# How fruDsx's confidence suffix is treated when deciding "does this neuron
+# carry fru/dsx". One of: "any_positive" | "high_confidence_only".
+#   any_positive         — fru/dsx_{high,low} + coexpress_{high,low} all count
+#   high_confidence_only — only the _high variants count
+# Phases 1, 3 and 4 read this value. Phase 0 ignores it and deliberately
+# reports BOTH rules side by side, since the kill-gate decision has to be
+# robust to this choice rather than depend on it (docs/project_plan.md
+# section (e) risk #2). All committed results were produced with
+# "any_positive"; changing this will change them, and the regression tests
+# in tests/test_phase*_integration.py pin the "any_positive" numbers.
+fru_dsx_aggregation: "any_positive"

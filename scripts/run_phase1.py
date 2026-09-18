@@ -14,22 +14,21 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.data.neuprint_client import fetch_roi_info  # noqa: E402
-from fruresidual.features.atlas import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.data.neuprint_client import fetch_roi_info
+from fruresidual.features.atlas import (
     load_neurotransmitters,
     multi_dimension_enrichment,
     parse_roi_info,
     roi_residual_summary,
 )
-from fruresidual.features.fru_dsx_join import (  # noqa: E402
+from fruresidual.features.fru_dsx_join import (
     DIMORPHIC_CATEGORIES,
     has_fru_dsx,
     load_male_cns_annotations,
 )
-from fruresidual.viz.atlas import plot_enrichment_bar, plot_roi_bar, plot_roi_bar_by_pct  # noqa: E402
+from fruresidual.viz.atlas import plot_enrichment_bar, plot_roi_bar, plot_roi_bar_by_pct
 
-RULE = "any_positive"  # primary rule, matching Phase 0's headline number
 DIMENSIONS = [
     "superclass", "class", "subclass", "itoleeHl", "trumanHl",
     "somaNeuromere", "entryNerve", "exitNerve", "somaSide", "consensus_nt",
@@ -38,13 +37,14 @@ DIMENSIONS = [
 
 def main() -> None:
     cfg = load_config()
+    rule = cfg.fru_dsx_aggregation
     cfg.data_interim.mkdir(parents=True, exist_ok=True)
     cfg.data_processed.mkdir(parents=True, exist_ok=True)
     figures_dir = Path(__file__).resolve().parents[1] / "reports" / "figures" / "phase1"
 
     df = load_male_cns_annotations(cfg, traced_only=True)
     dimorphic = df[df["dimorphism"].isin(DIMORPHIC_CATEGORIES)].copy()
-    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, RULE)
+    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, rule)
     residual_mask = ~dimorphic["has_fru_dsx"]
     residual_body_ids = set(dimorphic.loc[residual_mask, "bodyId"])
     print(f"dimorphic/male-specific: {len(dimorphic)}, residual: {len(residual_body_ids)}")
@@ -88,7 +88,7 @@ def main() -> None:
 
     # --- Summary JSON ---
     summary = {
-        "rule": RULE,
+        "rule": rule,
         "n_dimorphic": len(dimorphic),
         "n_residual": len(residual_body_ids),
         "dimensions_tested": list(enrichment_results.keys()),

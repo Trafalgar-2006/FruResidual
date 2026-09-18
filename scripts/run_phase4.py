@@ -16,28 +16,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.data.banc_client import load_banc_meta  # noqa: E402
-from fruresidual.features.cross_validation import compute_concordance, match_banc_to_malecns  # noqa: E402
-from fruresidual.features.fru_dsx_join import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.data.banc_client import load_banc_meta
+from fruresidual.features.cross_validation import compute_concordance, match_banc_to_malecns
+from fruresidual.features.fru_dsx_join import (
     DIMORPHIC_CATEGORIES,
     has_fru_dsx,
     load_male_cns_annotations,
 )
-from fruresidual.viz.phase4 import plot_concordance_bar  # noqa: E402
-
-RULE = "any_positive"  # matches Phase 0/1/3's headline rule
+from fruresidual.viz.phase4 import plot_concordance_bar
 
 
 def main() -> None:
     cfg = load_config()
+    rule = cfg.fru_dsx_aggregation
     cfg.data_processed.mkdir(parents=True, exist_ok=True)
     figures_dir = Path(__file__).resolve().parents[1] / "reports" / "figures" / "phase4"
 
     df = load_male_cns_annotations(cfg, traced_only=True)
     dimorphic_mask = df["dimorphism"].isin(DIMORPHIC_CATEGORIES)
     dimorphic = df[dimorphic_mask].copy()
-    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, RULE)
+    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, rule)
     residual_body_ids = set(dimorphic.loc[~dimorphic["has_fru_dsx"], "bodyId"])
     print(f"MaleCNS traced population: {len(df)}, dimorphic/male-specific: {len(dimorphic)}, "
           f"residual: {len(residual_body_ids)}")

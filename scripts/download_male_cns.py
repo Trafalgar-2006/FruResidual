@@ -19,7 +19,7 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from fruresidual.config import load_config  # noqa: E402
+from fruresidual.config import load_config
 
 BASE_URL = "https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome"
 # Small-to-large order on purpose: the two small files are all Phase 0

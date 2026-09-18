@@ -42,6 +42,24 @@ def test_recall_is_high_precision_is_not(summary):
     assert overall["precision_banc_dimorphic_matches_malecns"] < overall["recall_malecns_dimorphic_confirmed_by_banc"]
 
 
+def test_high_recall_is_not_an_artifact_of_missing_banc_calls(summary):
+    # BANC leaves 70K+ neurons unassessed (null sexually_dimorphic), which
+    # the concordance math counts as "not confirmed" exactly like a real
+    # disagreement. If the matched dimorphic set were mostly unassessed,
+    # the headline recall would be measuring missing data, not agreement.
+    # It isn't: essentially all matches carry a real BANC call, so
+    # restricting to assessed-only barely moves recall.
+    overall = summary["overall"]
+    n_md = overall["n_malecns_dimorphic_matched"]
+    assert overall["n_malecns_dimorphic_unassessed_by_banc"] < 0.05 * n_md
+    assert abs(
+        overall["recall_among_banc_assessed_only"]
+        - overall["recall_malecns_dimorphic_confirmed_by_banc"]
+    ) < 0.05
+    # and the finding doesn't rest on unproofread reconstructions
+    assert overall["n_malecns_dimorphic_unproofread_in_banc"] == 0
+
+
 def test_residual_not_significantly_different_from_explained(summary):
     # The actual Phase 4 finding: residual (fru/dsx-unexplained) neurons
     # are confirmed dimorphic by BANC at a statistically indistinguishable

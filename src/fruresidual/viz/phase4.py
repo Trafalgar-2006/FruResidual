@@ -30,7 +30,7 @@ def plot_concordance_bar(overall: dict, by_superclass: dict, out_path: Path) -> 
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar([i - width / 2 for i in x], residual_pct, width, label="residual (fru/dsx-)", color="#d1495b")
     ax.bar([i + width / 2 for i in x], explained_pct, width, label="explained (fru/dsx+)", color="#6c8ebf")
-    for i, (nr, ne) in enumerate(zip(n_residual, n_explained)):
+    for i, (nr, ne) in enumerate(zip(n_residual, n_explained, strict=True)):
         ax.text(i - width / 2, residual_pct[i] + 2, f"n={nr}", ha="center", fontsize=8)
         ax.text(i + width / 2, explained_pct[i] + 2, f"n={ne}", ha="center", fontsize=8)
 

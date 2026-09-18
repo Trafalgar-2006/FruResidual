@@ -14,3 +14,14 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# E402 (import not at top of file) is selected on purpose, not by accident:
+# scripts/ must run sys.path.insert before importing fruresidual, and the
+# `# noqa: E402` markers there are the deliberate suppression. Without E402
+# selected those markers read as dead directives and RUF100 flags them.
+select = ["E", "F", "W", "B", "I", "UP", "RUF"]
+ignore = ["E501"]  # long lines are usually prose in docstrings; line-length above is advisory

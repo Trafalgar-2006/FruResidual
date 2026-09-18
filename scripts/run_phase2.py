@@ -14,18 +14,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.data.flywire_client import load_flywire_annotations  # noqa: E402
-from fruresidual.data.neuprint_client import fetch_population_edges  # noqa: E402
-from fruresidual.features.atlas import load_neurotransmitters  # noqa: E402
-from fruresidual.features.fru_dsx_join import load_male_cns_annotations  # noqa: E402
-from fruresidual.features.ml_features import build_features  # noqa: E402
-from fruresidual.features.rewiring import select_case_control_population  # noqa: E402
-from fruresidual.models.baselines import evaluate_baselines, out_of_fold_predictions  # noqa: E402
-from fruresidual.models.gnn import build_graph, train_gnn  # noqa: E402
-from fruresidual.viz.phase2 import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.data.flywire_client import load_flywire_annotations
+from fruresidual.data.neuprint_client import fetch_population_edges
+from fruresidual.features.atlas import load_neurotransmitters
+from fruresidual.features.fru_dsx_join import load_male_cns_annotations
+from fruresidual.features.ml_features import build_features
+from fruresidual.features.rewiring import select_case_control_population
+from fruresidual.models.baselines import evaluate_baselines, out_of_fold_predictions
+from fruresidual.models.gnn import build_graph, train_gnn
+from fruresidual.viz.phase2 import (
     plot_ablation_comparison,
     plot_predicted_vs_actual,
     plot_residual_distribution,

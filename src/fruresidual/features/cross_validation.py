@@ -24,6 +24,14 @@ from scipy.stats import fisher_exact
 # against ANY of these (not isomorphic, not unclassified).
 BANC_DIMORPHIC_VALUES = frozenset({"dimorphic", "female-specific", "male-specific"})
 
+# BANC's `sexually_dimorphic` has five states, and "not confirmed" lumps
+# together two very different ones: "isomorphic" (assessed, judged not
+# dimorphic -- a real disagreement) and null (never assessed -- 70,121 of
+# BANC's 188,508 neurons, which is not evidence either way). These are
+# reported separately so a low confirmation rate can't be misread as
+# disagreement when it's really missing data.
+BANC_ISOMORPHIC_VALUE = "isomorphic"
+
 
 def match_banc_to_malecns(banc_df: pd.DataFrame, malecns_body_ids: set[int]) -> pd.DataFrame:
     """Restricts BANC to neurons with an unambiguous (exactly one BANC
@@ -77,6 +85,15 @@ def compute_concordance(
     recall = both / n_malecns_dimorphic if n_malecns_dimorphic else None
     precision = both / n_banc_dimorphic if n_banc_dimorphic else None
 
+    # Split the "not confirmed" remainder into real disagreement vs. no
+    # BANC call at all, and check proofreading status, so the headline
+    # recall can be sanity-checked rather than taken on faith.
+    md_rows = df[df["malecns_dimorphic"]]
+    n_contradicted = int((md_rows["sexually_dimorphic"] == BANC_ISOMORPHIC_VALUE).sum())
+    n_unassessed = int(md_rows["sexually_dimorphic"].isna().sum())
+    n_assessed = len(md_rows) - n_unassessed
+    n_unproofread = int((md_rows["proofread"].astype(str).str.upper() != "TRUE").sum())
+
     residual_rows = df[df["is_residual"]]
     explained_rows = df[df["malecns_dimorphic"] & ~df["is_residual"]]
 
@@ -95,7 +112,11 @@ def compute_concordance(
         "n_banc_dimorphic_matched": n_banc_dimorphic,
         "jaccard_dimorphic_overlap": jaccard,
         "recall_malecns_dimorphic_confirmed_by_banc": recall,
+        "recall_among_banc_assessed_only": both / n_assessed if n_assessed else None,
         "precision_banc_dimorphic_matches_malecns": precision,
+        "n_malecns_dimorphic_contradicted_by_banc": n_contradicted,
+        "n_malecns_dimorphic_unassessed_by_banc": n_unassessed,
+        "n_malecns_dimorphic_unproofread_in_banc": n_unproofread,
         "n_residual_matched": len(residual_rows),
         "pct_residual_confirmed_dimorphic_by_banc": round(100 * a / len(residual_rows), 1) if len(residual_rows) else None,
         "n_explained_matched": len(explained_rows),

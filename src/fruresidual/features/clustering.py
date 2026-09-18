@@ -41,8 +41,8 @@ def build_knn_graph(matrix: pd.DataFrame, k: int = 15) -> ig.Graph:
     distances, indices = nn.kneighbors(matrix.values)
 
     edges, weights = [], []
-    for i, (dist_row, idx_row) in enumerate(zip(distances, indices)):
-        for dist, j in zip(dist_row, idx_row):
+    for i, (dist_row, idx_row) in enumerate(zip(distances, indices, strict=True)):
+        for dist, j in zip(dist_row, idx_row, strict=True):
             if i == j:
                 continue
             edges.append((i, j))

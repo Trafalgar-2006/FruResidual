@@ -27,7 +27,7 @@ def parse_roi_info(roi_info_series: pd.Series, bodyid_series: pd.Series) -> pd.D
     count) is used as the innervation-strength measure.
     """
     rows = []
-    for body_id, raw in zip(bodyid_series, roi_info_series):
+    for body_id, raw in zip(bodyid_series, roi_info_series, strict=True):
         if not raw:
             continue
         roi_dict = json.loads(raw) if isinstance(raw, str) else raw

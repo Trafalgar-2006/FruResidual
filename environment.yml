@@ -31,6 +31,7 @@ dependencies:
   - seaborn
   - jupyterlab
   - pytest
+  - ruff
   - python-dotenv
   - pyyaml
   - requests

@@ -10,10 +10,10 @@ Full plan, data sources, and background reading: [docs/project_plan.md](docs/pro
 ## Project layout
 
 ```
-configs/            config.yaml — paths, dataset ids, Phase-0 aggregation rule
+configs/            config.yaml — paths, dataset ids, fru/dsx aggregation rule
 data/                raw/ interim/ processed/ — gitignored, fetched via scripts/
 docs/                project_plan.md, phaseN_results.md — plan + per-phase writeups
-notebooks/           one notebook per phase; thin, calls into src/fruresidual
+notebooks/           scratch space only — the real entry points are scripts/
 reports/figures/     small PNG deliverables per phase — tracked in git, unlike data/
 scripts/             run_phaseN.py, download_*.py — standalone entry points
 src/fruresidual/     the actual package — data clients, features, models, eval, viz
@@ -67,7 +67,14 @@ CUDA 13.3). Steps below are exactly what was run.
 7. Sanity check everything at once:
    ```
    python -m pytest
+   ruff check .
    ```
+   Both must be clean. Note that `conda activate fruresidual` really is
+   required first — calling the env's `python.exe` by absolute path
+   without activating it leaves conda's `Library/bin` off `PATH`, and
+   scikit-learn then dies with a Windows delay-load failure
+   (`0xc06d007f`) deep inside its BLAS calls rather than a normal
+   ImportError.
 
 ### Compute tiers
 

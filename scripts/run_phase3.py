@@ -27,28 +27,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.features.clustering import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.features.clustering import (
     build_knn_graph,
     build_profile_matrix,
     cluster_enrichment,
     leiden_cluster,
 )
-from fruresidual.features.fru_dsx_join import (  # noqa: E402
+from fruresidual.features.fru_dsx_join import (
     DIMORPHIC_CATEGORIES,
     has_fru_dsx,
     load_male_cns_annotations,
 )
-from fruresidual.features.motifs import (  # noqa: E402
+from fruresidual.features.motifs import (
     check_degree_confound,
     identify_mixed_strata,
     partner_type_enrichment,
 )
-from fruresidual.viz.phase3 import plot_cluster_scatter, plot_motif_enrichment  # noqa: E402
+from fruresidual.viz.phase3 import plot_cluster_scatter, plot_motif_enrichment
 
-RULE = "any_positive"
 MIN_GROUP_SIZE = 20
 MIN_MOTIF_NEURONS = 10
 # clustering.py's own docstring says not to trust one resolution blindly
@@ -61,11 +60,12 @@ CLUSTER_RESOLUTION_SWEEP = [0.02, 0.05, 0.1, 0.2, 0.3]
 
 def main() -> None:
     cfg = load_config()
+    rule = cfg.fru_dsx_aggregation
     figures_dir = Path(__file__).resolve().parents[1] / "reports" / "figures" / "phase3"
 
     df = load_male_cns_annotations(cfg, traced_only=True)
     dimorphic = df[df["dimorphism"].isin(DIMORPHIC_CATEGORIES)].copy()
-    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, RULE)
+    dimorphic["has_fru_dsx"] = has_fru_dsx(dimorphic, rule)
     residual_body_ids = set(dimorphic.loc[~dimorphic["has_fru_dsx"], "bodyId"])
     print(f"dimorphic/male-specific: {len(dimorphic)}, residual: {len(residual_body_ids)}")
 

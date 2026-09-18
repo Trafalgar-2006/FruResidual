@@ -42,6 +42,10 @@ class Config:
         return self.raw["neuprint"]["dataset"]
 
     @property
+    def fru_dsx_aggregation(self) -> str:
+        return self.raw["fru_dsx_aggregation"]
+
+    @property
     def neuprint_token(self) -> str:
         token = os.environ.get("NEUPRINT_TOKEN")
         if not token:

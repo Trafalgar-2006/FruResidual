@@ -22,12 +22,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.data.neuprint_client import (  # noqa: E402
+from fruresidual.config import load_config
+from fruresidual.data.neuprint_client import (
     fetch_partner_superclass_profile,
     fetch_partner_type_profile,
 )
-from fruresidual.features.fru_dsx_join import DIMORPHIC_CATEGORIES, load_male_cns_annotations  # noqa: E402
+from fruresidual.features.fru_dsx_join import DIMORPHIC_CATEGORIES, load_male_cns_annotations
 
 
 def main() -> None:
