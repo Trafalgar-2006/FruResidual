@@ -5,17 +5,50 @@ Predicting sex-specific rewiring in the *Drosophila* connectome from the
 switch can't explain as candidate evidence for a second, uncharacterized
 driver of brain sex differences.
 
-Full plan, data sources, and background reading: [docs/project_plan.md](docs/project_plan.md).
+**Read the full result: [docs/paper.md](docs/paper.md)** (paper-shaped:
+intro, methods, results, honest limitations, novelty statement). This
+README covers setup and reproduction; the plan behind the project is in
+[docs/project_plan.md](docs/project_plan.md).
+
+![Headline figure](reports/figures/summary_headline.png)
+
+## Headline result
+
+Four independent lines of evidence, each gating the next:
+
+1. **The residual is real and structured** (Phase 0/1) — 38.9-45.6% of
+   dimorphic/male-specific neurons carry no *fru*/*dsx* annotation,
+   concentrated sharply in the optic lobes (95-100%) and less sharply in
+   the VNC/periphery (70-76%), against a well-explained central brain
+   (14-32%).
+2. **Structure predicts it about as well as the genetic switch does**
+   (Phase 2) — a gradient-boosting model gets R²=0.507 from connectivity
+   structure alone; adding *fru*/*dsx* as a feature moves that to
+   R²=0.499, within noise. A GNN using the real connectome subgraph does
+   substantially better (R²=0.735).
+3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
+   yields a non-confounded, resolution-robust connectivity cluster
+   concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 68
+   significant partner-type motifs.
+4. **Independently replicated** (Phase 4) — BANC, a second female
+   reconstruction from a different research group, confirms the residual
+   and the *fru*/*dsx*-explained set as dimorphic at statistically
+   indistinguishable rates (86.8% vs. 82.1%, p=0.547) — the residual
+   isn't disproportionately made of artifacts.
+
+No new gene or confirmed mechanism is claimed. See
+[docs/paper.md](docs/paper.md) section 6 for exactly what is and isn't
+novel here, and section 5 for every limitation stated plainly.
 
 ## Project layout
 
 ```
 configs/            config.yaml — paths, dataset ids, fru/dsx aggregation rule
 data/                raw/ interim/ processed/ — gitignored, fetched via scripts/
-docs/                project_plan.md, phaseN_results.md — plan + per-phase writeups
+docs/                paper.md (start here), project_plan.md, phaseN_results.md
 notebooks/           scratch space only — the real entry points are scripts/
 reports/figures/     small PNG deliverables per phase — tracked in git, unlike data/
-scripts/             run_phaseN.py, download_*.py — standalone entry points
+scripts/             run_phaseN.py, download_*.py, make_summary_figure.py
 src/fruresidual/     the actual package — data clients, features, models, eval, viz
 tests/               pytest
 ```
@@ -99,7 +132,12 @@ The FlyWire `flywire_annotations` table is fetched on first use by
 `fruresidual.data.flywire_client.load_flywire_annotations` (also cached
 into the same directory).
 
-## Status
+## Phase-by-phase reproduction log
+
+The narrative result lives in [docs/paper.md](docs/paper.md); this
+section is the per-phase build log — how to reproduce each phase
+individually, and what was found while building it (including bugs
+caught and fixed, not just clean headlines).
 
 **Phase 0 (kill-gate): ALIVE.** Run `python scripts/run_phase0.py` to
 reproduce. Full writeup: [docs/phase0_results.md](docs/phase0_results.md).
@@ -191,4 +229,12 @@ disproportionately made of artifacts, supporting that it reflects real,
 independently-replicable biology.
 
 All four data-driven phases (0-4) are now complete.
+
+**Phase 5 (package): done.** Run `python scripts/make_summary_figure.py`
+after Phases 1-4 to regenerate the headline figure at the top of this
+README. This phase produced [docs/paper.md](docs/paper.md) (the
+paper-shaped writeup), the headline figure, this README restructure, and
+a repo-wide audit (dead config values, dead docs, lint, a
+data-assumption check against the real files) — see the git history for
+the audit commit if you want the details of what was checked.
 
