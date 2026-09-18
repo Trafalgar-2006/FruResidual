@@ -135,7 +135,7 @@ region, is doing real work here."
 |---|---|---|
 | ridge (without fru/dsx) | 0.090 ± 0.154 (CV mean) | 0.005 |
 | gradient_boosting (without fru/dsx) | **0.219 ± 0.138** (CV mean) | 0.004 |
-| GNN (population-internal subgraph, 7,441 edges) | **-0.592 ± 1.000** (10-seed mean) | 0.004 |
+| GNN (population-internal subgraph, 7,441 edges) | **-0.388 ± 0.665** (5-fold CV × 3 seeds) | 0.004 |
 
 **This section previously claimed the GNN "clearly beats both baselines"
 at R²=0.735. That was wrong, and the way it was wrong is worth
@@ -154,15 +154,20 @@ recording.** Two compounding errors:
    apples to oranges. The baselines were already reported as means over
    CV folds; the GNN was a single 15% test split (~190 nodes).
 
-Reporting the GNN the same way the baselines are reported — swept over
-10 seeds (`GNN_SEEDS` in `scripts/run_phase2.py`), which is
-repeated-random-subsampling cross-validation, each seed drawing a fresh
-train/val/test split as well as a fresh initialization — gives
-R² = **-0.592 ± 1.000** on the corrected target, spanning **-2.324 to
-+0.556**. It beats the gradient-boosting baseline on **3 of 10 seeds**,
-and its mean is far below it. (On the old inflated target the same sweep
-gave 0.399 ± 0.478 and 6/10; the conclusion was already negative and the
-corrected target makes it more so.)
+Reporting the GNN the same way the baselines are reported —
+`cross_validate_gnn`, **5-fold cross-validation over the graph's nodes,
+repeated across 3 seeds** (15 fits; every node held out exactly once per
+seed, and the repetition also captures weight-init variance) — gives
+R² = **-0.388 ± 0.665** on the corrected target, spanning **-2.052 to
++0.416**. It beats the gradient-boosting baseline on **1 of 15 folds**.
+
+This is now a like-for-like comparison: `evaluate_baselines(..., cv=5)`
+and `cross_validate_gnn(k=5)` use the same protocol, so the two `r2_mean`
+values are directly comparable. Earlier versions compared a single GNN
+split against cross-validated baselines, which is what made the GNN look
+like it won in the first place. (An intermediate version used a 10-seed
+sweep of single splits — better, but still not k-fold; it gave
+-0.592 ± 1.000. All three versions agree the answer is negative.)
 
 So the honest answer to the plan's pre-registered question ("if the GNN
 doesn't beat gradient boosting, report that") is: **it doesn't, not

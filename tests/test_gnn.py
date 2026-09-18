@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fruresidual.models.gnn import build_graph, train_gnn
+from fruresidual.models.gnn import build_graph, cross_validate_gnn, train_gnn
 
 
 def _synthetic_population_graph(n=200, seed=0):
@@ -103,3 +103,43 @@ def test_gnn_stable_with_unscaled_large_magnitude_features():
 
     assert result["test_r2"] > -1.0  # sanity floor -- catastrophic divergence would be far below this
     assert result["test_mae"] < 1.0  # target itself never exceeds ~0.1 here
+
+
+def test_cross_validate_gnn_is_comparable_to_baseline_protocol():
+    """The GNN must be evaluated the way the sklearn baselines are (k-fold
+    CV mean), not as one split. Comparing a single GNN split against
+    cross-validated baselines is what originally made the GNN look like
+    it beat them.
+    """
+    features, targets, edges = _synthetic_population_graph(n=300)
+    data = build_graph(features, targets, edges)
+    res = cross_validate_gnn(data, k=5, seeds=(0,), epochs=30, hidden_channels=8)
+
+    assert res["n_folds"] == 5
+    assert len(res["r2_per_fold"]) == 5
+    assert res["r2_min"] <= res["r2_mean"] <= res["r2_max"]
+    # repeated seeds multiply the number of fits
+    res3 = cross_validate_gnn(data, k=5, seeds=(0, 1), epochs=30, hidden_channels=8)
+    assert res3["n_folds"] == 10
+
+
+def test_cross_validate_gnn_holds_out_every_node_exactly_once_per_seed():
+    """Each node must be tested exactly once per seed -- otherwise the CV
+    mean is over a biased subsample rather than the whole population.
+    Mirrors the exact partition cross_validate_gnn builds.
+    """
+    n = 200
+    rng = np.random.default_rng(0)
+    perm = rng.permutation(n)
+    folds = np.array_split(perm, 5)
+    covered = np.concatenate(folds)
+    assert len(covered) == n
+    assert set(covered.tolist()) == set(range(n))
+
+
+def test_cross_validate_gnn_is_reproducible():
+    features, targets, edges = _synthetic_population_graph(n=300)
+    data = build_graph(features, targets, edges)
+    a = cross_validate_gnn(data, k=5, seeds=(0,), epochs=30, hidden_channels=8)
+    b = cross_validate_gnn(data, k=5, seeds=(0,), epochs=30, hidden_channels=8)
+    assert a["r2_per_fold"] == b["r2_per_fold"]

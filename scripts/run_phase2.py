@@ -25,7 +25,7 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 from fruresidual.features.ml_features import build_features
 from fruresidual.features.rewiring import select_case_control_population
 from fruresidual.models.baselines import evaluate_baselines, out_of_fold_predictions
-from fruresidual.models.gnn import build_graph, train_gnn
+from fruresidual.models.gnn import build_graph, cross_validate_gnn
 from fruresidual.viz.phase2 import (
     plot_ablation_comparison,
     plot_predicted_vs_actual,
@@ -33,9 +33,10 @@ from fruresidual.viz.phase2 import (
 )
 
 RANDOM_STATE = 0
-# The GNN is reported over a seed sweep, not a single run -- see the
-# comment at the sweep itself for why.
-GNN_SEEDS = range(10)
+# The GNN is k-fold cross-validated and repeated over seeds, matching the
+# baselines' cv=5 so the numbers are comparable -- see the call site.
+GNN_CV_FOLDS = 5
+GNN_SEEDS = (0, 1, 2)
 
 
 def main() -> None:
@@ -116,48 +117,41 @@ def main() -> None:
     graph_features = X_without.copy()  # keeps bodyId for build_graph's id_to_idx mapping
     data = build_graph(graph_features, y, edges)
 
-    # Swept across seeds rather than reported from one run. A single GNN
-    # run is not comparable to the baselines above, which are already
-    # cross-validated means over folds -- and it turns out this GNN is
-    # wildly seed-sensitive (R^2 from -0.76 to +0.88 over these seeds),
-    # so any single number is close to meaningless. An earlier version of
-    # this script reported one unseeded run (R^2=0.735) as if it were the
-    # result; that number was a lucky draw, not a finding.
-    gnn_r2s, gnn_maes = [], []
-    for seed in GNN_SEEDS:
-        res = train_gnn(data, epochs=200, random_state=seed)
-        gnn_r2s.append(float(res["test_r2"]))
-        gnn_maes.append(float(res["test_mae"]))
-        print(f"  GNN seed {seed}: R^2={res['test_r2']:.3f}, MAE={res['test_mae']:.5f}")
-
-    gnn_r2_mean, gnn_r2_std = float(np.mean(gnn_r2s)), float(np.std(gnn_r2s))
+    # K-fold cross-validated, repeated over seeds -- the same protocol the
+    # sklearn baselines above use (cv=5), so the two numbers are directly
+    # comparable. Reporting a single GNN split against cross-validated
+    # baselines is what originally made the GNN look like it won.
+    gnn_cv = cross_validate_gnn(data, k=GNN_CV_FOLDS, seeds=GNN_SEEDS, epochs=200)
     best_baseline_r2 = results_without["r2_mean"].max()
-    n_seeds_beating = int(np.sum(np.array(gnn_r2s) > best_baseline_r2))
+    n_folds_beating = int(np.sum(np.array(gnn_cv["r2_per_fold"]) > best_baseline_r2))
 
     summary = {
         "n_population": len(population),
         "n_cases": int(population["is_case"].sum()),
         "n_controls": int((~population["is_case"]).sum()),
         "ablation_table": ablation_table.to_dict("records"),
-        "gnn_seeds": list(GNN_SEEDS),
-        "gnn_test_r2_per_seed": gnn_r2s,
-        "gnn_test_r2_mean": gnn_r2_mean,
-        "gnn_test_r2_std": gnn_r2_std,
-        "gnn_test_r2_min": float(np.min(gnn_r2s)),
-        "gnn_test_r2_max": float(np.max(gnn_r2s)),
-        "gnn_test_mae_mean": float(np.mean(gnn_maes)),
-        "gnn_n_seeds_beating_best_baseline": n_seeds_beating,
-        "gnn_beats_best_baseline_on_mean": bool(gnn_r2_mean > best_baseline_r2),
+        "gnn_cv_k": gnn_cv["k"],
+        "gnn_cv_seeds": gnn_cv["seeds"],
+        "gnn_cv_n_folds": gnn_cv["n_folds"],
+        "gnn_test_r2_per_fold": gnn_cv["r2_per_fold"],
+        "gnn_test_r2_mean": gnn_cv["r2_mean"],
+        "gnn_test_r2_std": gnn_cv["r2_std"],
+        "gnn_test_r2_min": gnn_cv["r2_min"],
+        "gnn_test_r2_max": gnn_cv["r2_max"],
+        "gnn_test_mae_mean": gnn_cv["mae_mean"],
+        "gnn_n_folds_beating_best_baseline": n_folds_beating,
+        "gnn_beats_best_baseline_on_mean": bool(gnn_cv["r2_mean"] > best_baseline_r2),
         "n_population_internal_edges": len(edges),
     }
     with open(cfg.data_processed / "phase2_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     print(f"\n{'='*60}")
-    print(f"Best baseline (without fru/dsx) R^2: {best_baseline_r2:.3f}")
-    print(f"GNN R^2 over {len(GNN_SEEDS)} seeds: {gnn_r2_mean:.3f} +/- {gnn_r2_std:.3f} "
-          f"(min {min(gnn_r2s):.3f}, max {max(gnn_r2s):.3f})")
-    print(f"GNN beats best baseline on {n_seeds_beating}/{len(GNN_SEEDS)} seeds; "
+    print(f"Best baseline (without fru/dsx) R^2: {best_baseline_r2:.3f}  (5-fold CV mean)")
+    print(f"GNN R^2, {gnn_cv['k']}-fold CV x {len(gnn_cv['seeds'])} seeds "
+          f"({gnn_cv['n_folds']} fits): {gnn_cv['r2_mean']:.3f} +/- {gnn_cv['r2_std']:.3f} "
+          f"(min {gnn_cv['r2_min']:.3f}, max {gnn_cv['r2_max']:.3f})")
+    print(f"GNN beats best baseline on {n_folds_beating}/{gnn_cv['n_folds']} folds; "
           f"on the mean: {'YES' if summary['gnn_beats_best_baseline_on_mean'] else 'NO'}")
     print(f"{'='*60}")
     print("Saved figures to", figures_dir)

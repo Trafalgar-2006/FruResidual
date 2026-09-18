@@ -26,8 +26,8 @@ a gradient-boosting model predicts wiring difference from connectivity
 structure alone about as well as one that also sees *fru*/*dsx*
 (R²=0.219 vs. 0.216 — the genetic label adds nothing once structure is
 in the model), while a graph neural network on the connectome subgraph
-is too seed-unstable on this population to beat that baseline at all
-(R²=-0.592 ± 1.000 over 10 seeds); (3) one stratum,
+is too unstable on this population to beat that baseline at all
+(R²=-0.388 ± 0.665 over 5-fold CV × 3 seeds); (3) one stratum,
 ascending neurons, yields a degree-adjusted, resolution-robust
 connectivity-cluster signature concentrating 60.7% of its residual
 neurons in one cluster (odds ratio 2.68) plus 25 partner-type motifs
@@ -171,7 +171,7 @@ connectivity structure rather than raw annotation density.
 |---|---|---|---|
 | ridge (CV mean) | 0.090 ± 0.154 | 0.092 ± 0.154 | +0.002 |
 | gradient boosting (CV mean) | **0.219 ± 0.138** | 0.216 ± 0.132 | −0.003 |
-| GNN (10-seed mean, subgraph) | −0.592 ± 1.000 | — | — |
+| GNN (5-fold CV × 3 seeds) | −0.388 ± 0.665 | — | — |
 
 Both ablation differences are well inside one cross-validation standard
 deviation — adding *fru*/*dsx* as a feature does not improve prediction
@@ -182,9 +182,11 @@ the genetic label at all. **This ablation — the actual Phase 2
 deliverable — rests entirely on the deterministic sklearn baselines and
 is unaffected by the GNN result below.**
 
-The GNN does **not** beat those baselines. Swept over 10 seeds it gives
-R² = −0.592 ± 1.000, ranging from −2.324 to +0.556, and beats the
-gradient-boosting baseline on only 3 of 10 seeds. With 1,268 nodes,
+The GNN does **not** beat those baselines. Under 5-fold cross-validation
+over the graph's nodes repeated across 3 seeds (15 fits, the same
+protocol as the baselines' cv=5) it gives R² = −0.388 ± 0.665, ranging
+from −2.052 to +0.416, and beats the gradient-boosting baseline on only
+1 of 15 folds. With 1,268 nodes,
 7,441 internal edges and a ~190-node test split, there simply isn't
 enough data to train this GNN stably. The plan pre-registered exactly
 this outcome ("if the GNN doesn't beat gradient boosting, report that"),
@@ -310,11 +312,22 @@ Collected from each phase's own writeup, not softened:
   partner categories, not fine partner identity) and **brain-only**
   (FlyWire has no VNC), so any genuinely VNC-driven rewiring is
   structurally invisible to that phase specifically.
+- **The ablation is partly tautological, and reads weaker once you see
+  why.** `superclass` is in the feature set, and Phase 0 established that
+  superclass is the single strongest correlate of *fru*/*dsx*-unexplained
+  status (`ol_intrinsic` is ~100% residual). A model that already knows
+  superclass therefore has little room left for *fru*/*dsx* to add, so
+  "the genetic label adds nothing" partly restates "superclass already
+  encodes most of what the genetic label would have told us" rather than
+  being independent evidence that structure rivals the switch. It is
+  still a real negative result about *incremental* predictive value; it
+  is not proof that *fru*/*dsx* is uninformative in isolation.
 - **The GNN result is not usable as evidence.** It is too seed-unstable
-  on this population (R² −0.762 to +0.882 across 10 seeds) to support
+  on this population (R² −2.052 to +0.416 across 15 CV folds) to support
   any claim about graph structure carrying signal beyond per-neuron
-  features. A defensible version would need k-fold cross-validation over
-  the graph and a larger population than this case-control design gives.
+  features. It is now evaluated with k-fold CV over the graph (so the
+  comparison is fair); what it would still need is a larger population
+  than this case-control design gives.
 - **Phase 3's `cb_intrinsic` result is broad rather than specific.** The
   degree confound is now corrected (Cochran-Mantel-Haenszel), and its
   motifs survive it — but 29% of all tested partner types coming out

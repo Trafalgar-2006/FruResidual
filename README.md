@@ -25,8 +25,8 @@ Four independent lines of evidence, each gating the next:
    (Phase 2) — a gradient-boosting model gets R²=0.219 from connectivity
    structure alone; adding *fru*/*dsx* as a feature moves that to
    R²=0.216, within noise. (A GNN on the connectome subgraph was tried
-   and is reported as a negative result: too seed-unstable on this
-   population to beat that baseline at all.)
+   and is reported as a negative result: under 5-fold CV over the graph it
+   does not beat that baseline.)
 3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
    yields a degree-adjusted, resolution-robust connectivity cluster
    concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 25
@@ -174,8 +174,8 @@ Full writeup: [docs/phase2_results.md](docs/phase2_results.md). Figures:
 FlyWire types), a gradient-boosting baseline predicts wiring difference
 from structure alone at R²=0.219 — and adding fru/dsx as a feature adds
 nothing (R²=0.216, within noise). The GNN is reported as a **negative**
-result: swept over 10 seeds it gives R²=-0.592 ± 1.000 and beats the
-gradient-boosting baseline on only 3/10 seeds — too little data (1,268
+result: under 5-fold CV over the graph repeated across 3 seeds it gives
+R²=-0.388 ± 0.665 and beats the gradient-boosting baseline on only 1/15 folds — too little data (1,268
 nodes) to train stably. Two corrections landed here on 2026-09-19: the
 wiring-difference **target itself was rebuilt** (two partner categories
 were expressible by FlyWire but structurally unreachable from MaleCNS,

@@ -233,6 +233,43 @@ Read in two tiers now rather than three:
    population-level difference rather than a specific circuit) and the
    much smaller `vnc_intrinsic` remainder.
 
+## Following the lead: what ARE the surviving ascending_neuron partners?
+
+The 25 degree-adjusted partner types map to 123 MaleCNS neurons. Rather
+than leave them as opaque type codes, characterized directly from the
+annotations (2026-09-19):
+
+- **71% are VNC local interneurons** (87/123 `vnc_intrinsic`, plus 32
+  `ascending_neuron` and 4 `descending_neuron`). So fru/dsx-negative
+  ascending neurons preferentially talk to VNC-local circuitry, not to
+  brain targets.
+- **Soma positions span the whole VNC**, thoracic (T1-T3, n=72) *and*
+  abdominal (A1-A7, n=47). The abdominal component is the more
+  interesting half: abdominal neuromeres house the circuitry for
+  copulation and egg-laying, which is where sexual dimorphism is
+  expected on prior biology.
+- **The partners are themselves fru/dsx-unannotated — every single one.**
+  0 of 123 carry a fru/dsx call, against 3.5 expected at the base rate
+  for the same superclasses (2.86%), Fisher p=0.028. That is a real
+  depletion, and it is the most suggestive thing in this phase: the
+  residual is not a set of isolated neurons hanging off a
+  fru/dsx-positive backbone, it connects into a sub-network that the
+  genetic switch does not appear to touch either. **Read with the small
+  expected count in mind** — p=0.028 on 3.5 expected events is
+  suggestive, not strong, and would need a larger matched sample to
+  firm up.
+- **There is no neurotransmitter signature, and the obvious-looking one
+  is an artifact of small numbers.** The strongest 8 partners skew
+  GABAergic (5/8), which invites a tidy "inhibitory motif" story — but
+  across all 123 partner neurons the mix is 50.4% acetylcholine / 48.0%
+  GABA, essentially identical to the `vnc_intrinsic` background of
+  42.2% / 40.4%. Checked precisely because the top-8 pattern looked
+  compelling; it does not survive.
+
+The remaining half of this lead — literature and anatomical follow-up on
+the specific `INXXX*`/`DNpe030` types — is genuinely outside what the
+connectome data alone can settle and is left as future work.
+
 ## Honest bottom line
 
 Per the plan's own framing ("if nothing clusters, report that
