@@ -134,27 +134,34 @@ plus an unplanned lead: several isomorphic-labeled neurons show
 surprisingly high actual wiring difference, worth a look alongside
 Phase 3's main analysis.
 
-**Phase 3 (hypothesis): done.** Run `python scripts/run_phase3.py` to
-reproduce (needs the cached profiles — see docs/phase3_results.md for
-the one-time fetch commands, ~1 min). Full writeup:
+**Phase 3 (hypothesis): done.** Run `python scripts/run_phase3_data.py`
+then `python scripts/run_phase3.py` to reproduce (~1 min total; the
+first script fetches and caches the connectivity profiles, skipping
+anything already cached). Full writeup:
 [docs/phase3_results.md](docs/phase3_results.md). Figures:
 [reports/figures/phase3/](reports/figures/phase3/). This phase found and
-fixed two real bugs before trusting any result: a regional confound
+fixed three real bugs before trusting any result: a regional confound
 (`ol_intrinsic` was 100% residual — zero internal variance, making any
 comparison against it tautological) fixed by stratifying to superclasses
-with a genuine residual/explained mix, and a multi-label statistical bug
+with a genuine residual/explained mix; a multi-label statistical bug
 (partner-type membership isn't single-label like superclass — the first
 implementation silently counted edges instead of neurons, corrupting
-every p-value). A third confound — residual neurons being more highly
-connected overall in 2 of 3 strata — was found and reported, not
-corrected. Headline: the cleanest, non-confounded result is in
-`ascending_neuron` (68 significant partner-type motifs, one
-connectivity cluster holding 60.7% of residual vs. 33% background,
-odds ratio 2.68) — a genuine candidate second-driver signature. The
-larger `cb_intrinsic` result (1,397 significant motifs) is degree-
-confounded and reported with that explicit caveat, not presented as
-clean. Consolidated ranked shortlist (1,802 candidates, read in tiers —
-see the writeup) saved to `data_processed/phase3_candidate_shortlist.csv`.
+every p-value); and an unvalidated clustering resolution (a fixed,
+never-checked value had silently replaced the sensitivity sweep the code
+itself called for — fixed by actually sweeping 5 resolutions per stratum
+and only trusting a cluster result robust across a majority of them). A
+fourth issue — residual neurons being more highly connected overall in 2
+of 3 strata — was found and reported, not corrected. Headline: the
+cleanest, most validated result is in `ascending_neuron` (68 significant
+partner-type motifs; a connectivity cluster holding 60.7% of residual
+vs. 33% background, odds ratio 2.68, confirmed robust across the
+resolution sweep, not an artifact of one parameter choice) — a genuine
+candidate second-driver signature. The larger `cb_intrinsic` result
+(1,397 significant motifs) is degree-confounded and shows no cluster
+structure at any swept resolution — reported with that explicit caveat,
+not presented as clean. Consolidated ranked shortlist (1,802 candidates,
+read in tiers — see the writeup) saved to
+`data_processed/phase3_candidate_shortlist.csv`.
 
 Next: Phase 4, cross-dataset validation via BANC — see
 docs/project_plan.md section (d).

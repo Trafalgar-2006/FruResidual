@@ -12,11 +12,11 @@ here only runs within superclasses that have >= MIN_GROUP_SIZE of BOTH
 residual and explained neurons, where "why do these two neurons in the
 same region differ" is a real, non-tautological question.
 
-Requires the cached profiles fetched during interactive investigation:
-data_interim/phase3_partner_type_profile.feather and
+Requires the cached profiles from scripts/run_phase3_data.py (run that
+first) -- data_interim/phase3_partner_type_profile.feather and
 data_interim/phase3_full_superclass_profile.feather.
 
-Usage:  python scripts/run_phase3.py
+Usage:  python scripts/run_phase3_data.py && python scripts/run_phase3.py
 """
 
 from __future__ import annotations
@@ -51,7 +51,12 @@ from fruresidual.viz.phase3 import plot_cluster_scatter, plot_motif_enrichment  
 RULE = "any_positive"
 MIN_GROUP_SIZE = 20
 MIN_MOTIF_NEURONS = 10
-CLUSTER_RESOLUTION = 0.1  # see clustering.py docstring for why not 1.0
+# clustering.py's own docstring says not to trust one resolution blindly
+# on real data -- swept explicitly rather than picking one arbitrary
+# value (an earlier version of this script did exactly that, with
+# resolution=0.1 never validated against real data; fixed 2026-09-18
+# during a full-project audit).
+CLUSTER_RESOLUTION_SWEEP = [0.02, 0.05, 0.1, 0.2, 0.3]
 
 
 def main() -> None:
@@ -75,6 +80,7 @@ def main() -> None:
     superclass_profile = pd.read_feather(cfg.data_interim / "phase3_full_superclass_profile.feather")
 
     all_motif_results, all_cluster_results, shortlist, degree_confound_results = [], [], [], []
+    resolution_sweep_results = []
 
     for _, stratum_row in mixed_strata.iterrows():
         sc = stratum_row["superclass"]
@@ -115,30 +121,55 @@ def main() -> None:
                 "degree_confounded": degree_check["degree_confounded"],
             })
 
-        # --- clustering within this stratum ---
+        # --- clustering within this stratum: resolution sensitivity sweep ---
         stratum_superclass_profile = superclass_profile[superclass_profile["bodyId"].isin(stratum_ids)]
         matrix = build_profile_matrix(stratum_superclass_profile, "partner_superclass")
         if len(matrix) < 30:
             print(f"  skipping clustering: stratum too small ({len(matrix)} neurons with profile data)")
             continue
         graph = build_knn_graph(matrix, k=min(15, len(matrix) - 1))
-        labels = leiden_cluster(graph, resolution=CLUSTER_RESOLUTION, random_state=0)
-        cluster_result = cluster_enrichment(labels, stratum_residual)
-        cluster_result["superclass"] = sc
-        all_cluster_results.append(cluster_result)
-        sig_clusters = cluster_result[cluster_result["significant"]]
-        print(f"  clusters: {labels.nunique()} found, {len(sig_clusters)} significantly enriched for residual")
-        for _, row in sig_clusters.iterrows():
-            shortlist.append({
-                "signature_type": f"connectivity_cluster[{sc}]", "category": f"cluster_{row['category']}",
-                "pct_of_residual": row["pct_of_subset"], "odds_ratio": row["odds_ratio"], "p_adj": row["p_adj"],
-                # clustering uses L2-normalized profile vectors (mitigates
-                # but doesn't rule out a degree effect) and single-label
-                # enrichment (not the same multi-label bug as motifs) --
-                # not directly comparable to the motif check above, so
-                # left unflagged rather than mislabeled either way.
-                "degree_confounded": None,
+
+        sweep_hits = 0
+        best_result, best_labels, best_res = None, None, None
+        for res in CLUSTER_RESOLUTION_SWEEP:
+            labels_r = leiden_cluster(graph, resolution=res, random_state=0)
+            result_r = cluster_enrichment(labels_r, stratum_residual)
+            n_sig_r = int(result_r["significant"].sum())
+            resolution_sweep_results.append({
+                "superclass": sc, "resolution": res, "n_clusters": int(labels_r.nunique()),
+                "n_significant": n_sig_r,
             })
+            if n_sig_r > 0:
+                sweep_hits += 1
+                if best_result is None:  # keep the smallest (least-smoothed) resolution with a hit
+                    best_result, best_labels, best_res = result_r, labels_r, res
+
+        robust = sweep_hits >= (len(CLUSTER_RESOLUTION_SWEEP) + 1) // 2  # majority of swept resolutions
+        print(f"  clusters: significant residual enrichment found at {sweep_hits}/{len(CLUSTER_RESOLUTION_SWEEP)} "
+              f"swept resolutions -> {'ROBUST' if robust else 'not robust, excluded from shortlist'}")
+
+        if best_result is not None:
+            best_result["superclass"] = sc
+            best_result["resolution"] = best_res
+            all_cluster_results.append(best_result)
+            labels = best_labels  # for the scatter plot below
+            if robust:
+                for _, row in best_result[best_result["significant"]].iterrows():
+                    shortlist.append({
+                        "signature_type": f"connectivity_cluster[{sc}, res={best_res}]",
+                        "category": f"cluster_{row['category']}",
+                        "pct_of_residual": row["pct_of_subset"], "odds_ratio": row["odds_ratio"],
+                        "p_adj": row["p_adj"],
+                        # clustering uses L2-normalized profile vectors
+                        # (mitigates but doesn't rule out a degree effect)
+                        # and single-label enrichment (not the same
+                        # multi-label bug as motifs) -- not directly
+                        # comparable to the motif check, left unflagged
+                        # rather than mislabeled either way.
+                        "degree_confounded": None,
+                    })
+        else:
+            labels = leiden_cluster(graph, resolution=CLUSTER_RESOLUTION_SWEEP[0], random_state=0)
         plot_cluster_scatter(
             matrix, labels, stratum_residual, figures_dir / f"cluster_scatter_{sc}.png"
         )
@@ -147,6 +178,9 @@ def main() -> None:
     motif_all.to_csv(cfg.data_processed / "phase3_motif_enrichment_stratified.csv", index=False)
     cluster_all = pd.concat(all_cluster_results, ignore_index=True) if all_cluster_results else pd.DataFrame()
     cluster_all.to_csv(cfg.data_processed / "phase3_cluster_enrichment_stratified.csv", index=False)
+    pd.DataFrame(resolution_sweep_results).to_csv(
+        cfg.data_processed / "phase3_cluster_resolution_sweep.csv", index=False
+    )
     with open(cfg.data_processed / "phase3_degree_confound_check.json", "w") as f:
         json.dump(degree_confound_results, f, indent=2)
     confounded_strata = {d["superclass"] for d in degree_confound_results if d["degree_confounded"]}
@@ -213,6 +247,7 @@ def main() -> None:
         "n_motif_candidates_significant_stratified": int(motif_all["significant"].sum()) if len(motif_all) else 0,
         "n_cluster_candidates_significant_stratified": int(cluster_all["significant"].sum()) if len(cluster_all) else 0,
         "degree_confound_by_stratum": degree_confound_results,
+        "cluster_resolution_sweep": resolution_sweep_results,
         "shortlist_size": len(shortlist_df),
     }
     with open(cfg.data_processed / "phase3_summary.json", "w") as f:

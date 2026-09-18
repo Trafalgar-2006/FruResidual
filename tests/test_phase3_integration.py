@@ -65,3 +65,30 @@ def test_shortlist_has_expected_signature_types():
     signature_types = df["signature_type"].unique()
     assert any("connectivity_motif" in s for s in signature_types)
     assert any("phase1_marginal" in s for s in signature_types)
+
+
+def test_cluster_resolution_sweep_confirms_ascending_neuron_is_robust():
+    # Regression-pins the third bug found on audit (2026-09-18): a fixed
+    # resolution=0.1 had silently replaced the sensitivity sweep
+    # clustering.py's own docstring calls for. Confirms the fix actually
+    # validates (not just changes) the headline finding: ascending_neuron
+    # stays significant across a majority of swept resolutions, while
+    # cb_intrinsic/vnc_intrinsic don't.
+    path = cfg.data_processed / "phase3_cluster_resolution_sweep.csv"
+    if not path.exists():
+        pytest.skip("resolution sweep CSV not found")
+    df = pd.read_csv(path)
+    hits = df.groupby("superclass")["n_significant"].apply(lambda s: (s > 0).sum())
+    assert hits["ascending_neuron"] >= 3  # robust: majority of 5 swept resolutions
+    assert hits.get("cb_intrinsic", 0) == 0  # clean null, not just unswept
+    assert hits.get("vnc_intrinsic", 0) < 3  # not robust -- correctly excluded from shortlist
+
+
+def test_only_robust_cluster_finding_reaches_the_shortlist():
+    path = cfg.data_processed / "phase3_candidate_shortlist.csv"
+    if not path.exists():
+        pytest.skip("shortlist CSV not found")
+    df = pd.read_csv(path)
+    cluster_rows = df[df["signature_type"].str.contains("connectivity_cluster", na=False)]
+    strata_in_shortlist = {s.split("[")[1].split(",")[0] for s in cluster_rows["signature_type"]}
+    assert strata_in_shortlist == {"ascending_neuron"}

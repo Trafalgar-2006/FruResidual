@@ -1,13 +1,12 @@
 # Phase 3: turning the residual into a hypothesis
 
-Run: 2026-09-18, via `scripts/run_phase3.py` (needs
+Run: 2026-09-18, via `scripts/run_phase3_data.py` (fetches
 `data_interim/phase3_partner_type_profile.feather` and
-`phase3_full_superclass_profile.feather`, fetched once via
-`fetch_partner_type_profile`/`fetch_partner_superclass_profile` over the
-full 2,368-neuron dimorphic population — ~1 minute total, both server-
-side aggregated).
+`phase3_full_superclass_profile.feather` over the full 2,368-neuron
+dimorphic population — ~1 minute total, both server-side aggregated;
+skips already-cached files) then `scripts/run_phase3.py`.
 
-## This phase found and fixed two real methodological bugs before any result could be trusted
+## This phase found and fixed three real methodological gaps before any result could be trusted
 
 **1. Regional confound (tautology).** The first version of this analysis
 compared the residual set (921 neurons) against the whole dimorphic
@@ -35,6 +34,22 @@ rows — so `len(series)` silently counted *edges* (~80,000) instead of
 dedicated neuron-set-membership implementation
 (`partner_type_enrichment`, no longer built on `category_enrichment`);
 regression-tested (`test_partner_type_enrichment_pct_is_neuron_level_not_edge_level`).
+
+**3. Unvalidated clustering resolution.** Found during a full-project
+audit (2026-09-18): `clustering.py`'s own docstring said not to trust a
+single Leiden resolution blindly on real data and to run a sensitivity
+sweep, but the script had drifted to a single fixed `resolution=0.1`
+picked without ever validating it against the real population — a
+documentation/implementation mismatch, and exactly the kind of thing
+that could have silently made the headline `ascending_neuron` finding an
+artifact of one arbitrary parameter choice. Fixed by sweeping
+`[0.02, 0.05, 0.1, 0.2, 0.3]` per stratum and only trusting a cluster
+result that's significant at a majority of swept resolutions (≥3/5).
+Result of actually doing this: it **confirms** the `ascending_neuron`
+finding (significant at 3/5, a stable 2-cluster split from resolution
+0.1 upward — not fragile) and **correctly excludes** `cb_intrinsic`
+(0/5 — a clean null, not a resolution artifact) and `vnc_intrinsic` (1/5,
+only at the extreme edge of the swept range) from the shortlist.
 
 ## Stratified population
 
@@ -78,14 +93,17 @@ strata is flagged with it, rather than presented as clean.
 are specific interneuron types (`INXXX230`, `INXXX058`, `INXXX306`,
 odds ratios 30-45) — see
 `reports/figures/phase3/motif_enrichment_unconfounded_only.png`. Leiden
-clustering (resolution=0.1) found 2 clusters; residual neurons are
-significantly concentrated in one of them (60.7% of residual vs 33% of
-background, odds ratio 2.68, p_adj=0.012) —
-`reports/figures/phase3/cluster_scatter_ascending_neuron.png`. **This is
-the strongest candidate finding from Phase 3**: fru/dsx-negative
+clustering, swept across 5 resolutions, finds a **robust** (significant
+at 3/5, stable from resolution 0.1 upward) 2-cluster split; residual
+neurons are significantly concentrated in one of them (60.7% of residual
+vs 33% of background, odds ratio 2.68, p_adj=0.012 at resolution 0.1 —
+see `reports/figures/phase3/cluster_scatter_ascending_neuron.png` and
+`data_processed/phase3_cluster_resolution_sweep.csv` for the full sweep).
+**This is the strongest candidate finding from Phase 3**: fru/dsx-negative
 ascending neurons connect to a distinguishable set of specific
 interneuron partners and cluster together connectivity-wise, independent
-of the degree confound found elsewhere.
+of the degree confound found elsewhere, and the cluster split isn't an
+artifact of one arbitrary resolution choice.
 
 ### cb_intrinsic — largest stratum, but degree-confounded
 
@@ -95,23 +113,29 @@ caveat above. Top hits (`DNg96`, `SMP204/361`, `APL`, `MBON33`, several
 span diverse central-brain neuropils, not one obviously redundant
 region — more plausible as partially real than the original
 `ol_intrinsic` tautology, but not separable from the degree effect with
-this analysis alone. No cluster was significantly enriched for residual
-in this stratum.
+this analysis alone. Clustering here is a clean null, and confirmed as
+such by the sweep: 0/5 resolutions found any significant cluster (at
+resolution 0.3 it splits into 6 clusters and still none are enriched for
+residual) — this isn't a case of "the right resolution wasn't tried,"
+there's genuinely no cluster-level structure here to find.
 
 ### vnc_intrinsic — small, also degree-confounded
 
 306/1,019 significant, same caveat, even more pronounced (residual mean
-degree 518 vs 285 — nearly 2x). Leiden found only a single cluster at
-this resolution (no internal substructure detected) — the "clustering"
-result here is a null result, honestly: 33/33 residual/explained,
-trivially non-significant since everyone is in one cluster.
+degree 518 vs 285 — nearly 2x). Clustering: significant at only 1/5 swept
+resolutions (0.3, where it first splits into 2 clusters — n=66 is small
+enough that this could easily be a small-sample artifact of that specific
+split) — excluded from the shortlist for not being robust, not because
+nothing was found at any resolution.
 
 ## Consolidated shortlist
 
 `data_processed/phase3_candidate_shortlist.csv` (1,802 rows) pools:
-region-stratified motifs, region-stratified clusters, and Phase 1's
-already-computed marginal (unstratified) hemilineage/neurotransmitter/
-neuromere/side dimensions. The `degree_confounded` column is `True`/
+region-stratified motifs, region-stratified clusters (only from strata
+where the cluster finding was robust across the resolution sweep — just
+`ascending_neuron`, 1 row), and Phase 1's already-computed marginal
+(unstratified) hemilineage/neurotransmitter/neuromere/side dimensions.
+The `degree_confounded` column is `True`/
 `False` for motifs (directly checked), `None` for clusters (different
 statistical basis — L2-normalized profiles partially mitigate but don't
 rule out a degree effect) and for the folded-in Phase 1 dimensions
@@ -132,12 +156,17 @@ Read the shortlist in tiers, not as one flat ranked list:
 
 Per the plan's own framing ("if nothing clusters, report that
 honestly — still a result"): something *does* cluster, but only cleanly
-in one of three testable strata. The `ascending_neuron` finding is a
-real, non-tautological, non-degree-confounded candidate second-driver
-signature — specific interneuron partners plus a distinguishable
-connectivity cluster, both statistically defensible. The larger
-`cb_intrinsic` result is suggestive but not separable from a genuine
-connectivity-intensity confound with the tools built here. This phase's
+in one of three testable strata, and that one held up under every check
+this phase could throw at it — not degree-confounded, and the cluster
+split is stable across a resolution sweep rather than an artifact of one
+parameter choice. The `ascending_neuron` finding is a real,
+non-tautological, non-degree-confounded, resolution-robust candidate
+second-driver signature — specific interneuron partners plus a
+distinguishable connectivity cluster, both statistically defensible. The
+larger `cb_intrinsic` result is suggestive at the motif level but shows
+no cluster-level structure at all (a clean null across every swept
+resolution) and isn't separable from a genuine connectivity-intensity
+confound with the tools built here. This phase's
 deliverable is exactly what PHASE 3 asks for — "a ranked shortlist of
 candidate signatures with effect sizes and corrected p-values" for
 further investigation — not a confirmed biological mechanism.

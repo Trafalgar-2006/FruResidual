@@ -33,6 +33,7 @@ dependencies:
   - pytest
   - python-dotenv
   - pyyaml
+  - requests
   - pip:
       - neuprint-python
       - -e .

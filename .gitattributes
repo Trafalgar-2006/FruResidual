@@ -1,0 +1,8 @@
+# Normalize line endings so git stops warning on every commit from this
+# Windows checkout, and so a clone on Linux/Mac gets consistent LF text
+# files rather than whatever this machine happened to write.
+* text=auto eol=lf
+
+# Binary/PNG assets: never touch, never diff as text.
+*.png binary
+*.feather binary
