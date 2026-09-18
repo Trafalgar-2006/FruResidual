@@ -163,5 +163,25 @@ not presented as clean. Consolidated ranked shortlist (1,802 candidates,
 read in tiers — see the writeup) saved to
 `data_processed/phase3_candidate_shortlist.csv`.
 
-Next: Phase 4, cross-dataset validation via BANC — see
-docs/project_plan.md section (d).
+**Phase 4 (cross-dataset validation): done.** Run
+`python scripts/run_phase4.py` (needs `banc_888_meta.feather`, fetched
+automatically on first run — 57.5MB, no auth). Full writeup:
+[docs/phase4_results.md](docs/phase4_results.md). Figure:
+[reports/figures/phase4/concordance_bar.png](reports/figures/phase4/).
+The plan called for re-deriving Phase 2's wiring-difference metric using
+BANC connectivity — not possible: our CAVE token authenticates fine but
+this account lacks the separate, non-self-serve "view" permission BANC's
+API requires. Adapted instead around what BANC's public bulk metadata
+*does* expose with no auth: direct neuron-level MaleCNS cross-matches
+plus BANC's own independent dimorphism calls. Matched 13,942 neurons
+unambiguously. Headline: BANC confirms 85.8% of MaleCNS's dimorphism
+calls (recall; precision is lower at 17.1% because BANC's own survey
+flags more candidates overall — a real cross-group sensitivity
+difference, not disagreement). The actual finding: residual (fru/dsx-
+unexplained) and explained neurons are confirmed at statistically
+indistinguishable rates (86.8% vs 82.1%, p=0.547) — the residual isn't
+disproportionately made of artifacts, supporting that it reflects real,
+independently-replicable biology.
+
+All four data-driven phases (0-4) are now complete.
+

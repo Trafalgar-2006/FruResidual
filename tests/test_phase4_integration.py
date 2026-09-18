@@ -1,0 +1,53 @@
+"""Integration test against the real Phase 4 outputs. Skipped if
+scripts/run_phase4.py hasn't been run yet -- mirrors the pattern in
+test_phase0/1/2/3_integration.py.
+"""
+
+import json
+
+import pytest
+
+from fruresidual.config import load_config
+
+cfg = load_config()
+_summary_path = cfg.data_processed / "phase4_summary.json"
+
+pytestmark = pytest.mark.skipif(
+    not _summary_path.exists(),
+    reason=f"Phase 4 outputs not found (expected at {_summary_path}); run scripts/run_phase4.py first",
+)
+
+
+@pytest.fixture(scope="module")
+def summary():
+    with open(_summary_path) as f:
+        return json.load(f)
+
+
+def test_matched_population_is_a_meaningful_size(summary):
+    # Regression-pins the real matching yield: ~14K unambiguous 1:1
+    # BANC<->MaleCNS matches were found within the 165K traced population.
+    assert summary["n_unambiguous_banc_matches"] > 10_000
+
+
+def test_recall_is_high_precision_is_not(summary):
+    # Regression-pins the real finding: BANC confirms most MaleCNS
+    # dimorphism calls (high recall) but calls far more neurons dimorphic
+    # overall than MaleCNS does within the matched set (low precision) --
+    # a real asymmetry between the two groups' classification criteria,
+    # not a bug. Conflating the two (e.g. reporting only Jaccard) would
+    # misread "BANC found more candidates" as "BANC disagrees with us."
+    overall = summary["overall"]
+    assert overall["recall_malecns_dimorphic_confirmed_by_banc"] > 0.7
+    assert overall["precision_banc_dimorphic_matches_malecns"] < overall["recall_malecns_dimorphic_confirmed_by_banc"]
+
+
+def test_residual_not_significantly_different_from_explained(summary):
+    # The actual Phase 4 finding: residual (fru/dsx-unexplained) neurons
+    # are confirmed dimorphic by BANC at a statistically indistinguishable
+    # rate from explained neurons -- i.e. the residual isn't disproportionately
+    # made of false positives relative to the rest of the dimorphic population.
+    overall = summary["overall"]
+    assert overall["residual_vs_explained_p_value"] > 0.05
+    assert overall["pct_residual_confirmed_dimorphic_by_banc"] > 70
+    assert overall["pct_explained_confirmed_dimorphic_by_banc"] > 70
