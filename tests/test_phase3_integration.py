@@ -64,7 +64,38 @@ def test_shortlist_has_expected_signature_types():
     df = pd.read_csv(path)
     signature_types = df["signature_type"].unique()
     assert any("connectivity_motif" in s for s in signature_types)
-    assert any("phase1_marginal" in s for s in signature_types)
+    # Annotation dimensions used to be folded in as "phase1_marginal_*",
+    # i.e. computed over the whole dimorphic population with no
+    # stratification -- carrying the same regional confound the motif and
+    # cluster analyses had already been corrected for. They are now
+    # re-tested within each stratum and carry the stratum in their name.
+    assert any(s.startswith("annotation_") and "[" in s for s in signature_types)
+    assert not any("phase1_marginal" in s for s in signature_types)
+
+
+def test_shortlist_excludes_unassigned_lineage_placeholders():
+    # putative_primary (itoleeHl) and TBD (trumanHl) are "not yet
+    # assigned a lineage" buckets and were the single largest hit in
+    # their dimension. A neuron missing both a fru/dsx call and a
+    # confident lineage call plausibly just means "under-annotated", so
+    # they are excluded rather than reported as biology.
+    path = cfg.data_processed / "phase3_candidate_shortlist.csv"
+    if not path.exists():
+        pytest.skip("shortlist CSV not found")
+    df = pd.read_csv(path)
+    assert not df["category"].isin({"putative_primary", "TBD"}).any()
+
+
+def test_degree_adjusted_motifs_are_what_reach_the_shortlist():
+    # Every connectivity_motif row must have survived the CMH degree
+    # adjustment, so degree_confounded is False rather than True.
+    path = cfg.data_processed / "phase3_candidate_shortlist.csv"
+    if not path.exists():
+        pytest.skip("shortlist CSV not found")
+    df = pd.read_csv(path)
+    motifs = df[df["signature_type"].str.startswith("connectivity_motif")]
+    assert len(motifs) > 0
+    assert not (motifs["degree_confounded"] == True).any()  # noqa: E712
 
 
 def test_cluster_resolution_sweep_confirms_ascending_neuron_is_robust():

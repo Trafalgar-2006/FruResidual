@@ -98,8 +98,13 @@ def main() -> None:
     male_pivot = male_shared_long.pivot_table(
         index="bodyId", columns="shared_category", values="weight", aggfunc="sum", fill_value=0
     )
+    # aggfunc="sum" to match the male side above. fetch_flywire_type_profiles
+    # already returns one row per (type, category), so sum == the previous
+    # implicit "mean" today -- pinned explicitly so the two sides can't
+    # drift apart if a type ever gets fetched twice by the resume logic.
     fw_pivot = fw_profiles_long.pivot_table(
-        index="flywireType", columns="partner_super_class", values="weight", fill_value=0
+        index="flywireType", columns="partner_super_class", values="weight",
+        aggfunc="sum", fill_value=0,
     )
 
     rows = []
@@ -114,6 +119,14 @@ def main() -> None:
                       "is_case": neuron["is_case"]})
 
     targets = pd.DataFrame(rows)
+    # cosine_distance returns NaN when a profile has no shared-category
+    # connectivity at all -- dropped rather than scored, since that is
+    # missing data, not a measured wiring difference.
+    n_unscorable = int(targets["wiring_difference"].isna().sum())
+    if n_unscorable:
+        print(f"dropping {n_unscorable} neurons with no comparable shared-category connectivity")
+        targets = targets.dropna(subset=["wiring_difference"]).reset_index(drop=True)
+
     out_path = cfg.data_processed / "phase2_wiring_targets.feather"
     targets.to_feather(out_path)
     print(f"\nsaved {len(targets)} wiring-difference targets to {out_path}")

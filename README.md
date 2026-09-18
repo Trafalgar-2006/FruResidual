@@ -22,15 +22,16 @@ Four independent lines of evidence, each gating the next:
    the VNC/periphery (70-76%), against a well-explained central brain
    (14-32%).
 2. **Structure predicts it about as well as the genetic switch does**
-   (Phase 2) — a gradient-boosting model gets R²=0.507 from connectivity
+   (Phase 2) — a gradient-boosting model gets R²=0.219 from connectivity
    structure alone; adding *fru*/*dsx* as a feature moves that to
-   R²=0.499, within noise. (A GNN on the connectome subgraph was tried
+   R²=0.216, within noise. (A GNN on the connectome subgraph was tried
    and is reported as a negative result: too seed-unstable on this
-   population to beat that baseline reliably.)
+   population to beat that baseline at all.)
 3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
-   yields a non-confounded, resolution-robust connectivity cluster
-   concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 68
-   significant partner-type motifs.
+   yields a degree-adjusted, resolution-robust connectivity cluster
+   concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 25
+   partner-type motifs that survive Cochran-Mantel-Haenszel adjustment
+   for connectivity intensity.
 4. **Independently replicated** (Phase 4) — BANC, a second female
    reconstruction from a different research group, confirms the residual
    and the *fru*/*dsx*-explained set as dimorphic at statistically
@@ -171,18 +172,17 @@ Full writeup: [docs/phase2_results.md](docs/phase2_results.md). Figures:
 [reports/figures/phase2/](reports/figures/phase2/). Headline: on a
 634-case/634-control population (dimorphic vs. isomorphic, matched to
 FlyWire types), a gradient-boosting baseline predicts wiring difference
-reasonably well (R²=0.51) from structure alone — and adding fru/dsx as a
-feature adds nothing (R²=0.50, within noise). The GNN on the real
-connectome subgraph is reported as a **negative** result: swept over 10
-seeds it gives R²=0.399 ± 0.478 (range -0.762 to +0.882) and beats the
-gradient-boosting baseline on only 6/10 seeds, so it does not reliably
-beat it — too little data (1,268 nodes) to train stably. An earlier
-version of this claimed R²=0.735; that came from an unseeded run and a
-single-split-vs-cross-validated comparison, both since fixed and
-regression-tested. Per-neuron residual scores are saved for Phase 3,
-plus an unplanned lead: several isomorphic-labeled neurons show
-surprisingly high actual wiring difference, worth a look alongside
-Phase 3's main analysis.
+from structure alone at R²=0.219 — and adding fru/dsx as a feature adds
+nothing (R²=0.216, within noise). The GNN is reported as a **negative**
+result: swept over 10 seeds it gives R²=-0.592 ± 1.000 and beats the
+gradient-boosting baseline on only 3/10 seeds — too little data (1,268
+nodes) to train stably. Two corrections landed here on 2026-09-19: the
+wiring-difference **target itself was rebuilt** (two partner categories
+were expressible by FlyWire but structurally unreachable from MaleCNS,
+inflating the signal ~4x — the case/control separation and the ablation
+conclusion both survive the fix, but all absolute R² values dropped), and
+the ridge baseline was un-mis-specified (one-hot encoding plus in-pipeline
+scaling). Per-neuron residual scores are saved for Phase 3.
 
 **Phase 3 (hypothesis): done.** Run `python scripts/run_phase3_data.py`
 then `python scripts/run_phase3.py` to reproduce (~1 min total; the
@@ -201,16 +201,20 @@ never-checked value had silently replaced the sensitivity sweep the code
 itself called for — fixed by actually sweeping 5 resolutions per stratum
 and only trusting a cluster result robust across a majority of them). A
 fourth issue — residual neurons being more highly connected overall in 2
-of 3 strata — was found and reported, not corrected. Headline: the
-cleanest, most validated result is in `ascending_neuron` (68 significant
-partner-type motifs; a connectivity cluster holding 60.7% of residual
-vs. 33% background, odds ratio 2.68, confirmed robust across the
-resolution sweep, not an artifact of one parameter choice) — a genuine
-candidate second-driver signature. The larger `cb_intrinsic` result
-(1,397 significant motifs) is degree-confounded and shows no cluster
-structure at any swept resolution — reported with that explicit caveat,
-not presented as clean. Consolidated ranked shortlist (1,802 candidates,
-read in tiers — see the writeup) saved to
+of 3 strata — is now **corrected** (2026-09-19) via Cochran-Mantel-Haenszel
+testing within degree quartiles, not just flagged. Headline: the cleanest
+result is `ascending_neuron` (25 degree-adjusted partner-type motifs,
+down from 68 marginal; a connectivity cluster holding 60.7% of residual
+vs. 33% background, odds ratio 2.68, robust across the resolution sweep)
+— a genuine candidate second-driver signature. `vnc_intrinsic` largely
+dissolved under degree adjustment (306 → 44, 86% was artifact), while
+`cb_intrinsic` did not (1,397 → 1,429), so its old degree caveat is
+resolved — though at 29% of all tested types it reads as a broad
+population-level difference rather than a specific circuit. Phase 1's
+annotation dimensions are now re-tested within strata rather than folded
+in marginally, and unassigned-lineage placeholders (`putative_primary`,
+`TBD`) are excluded. Consolidated shortlist (1,531 candidates, all motif
+rows degree-adjusted) saved to
 `data_processed/phase3_candidate_shortlist.csv`.
 
 **Phase 4 (cross-dataset validation): done.** Run

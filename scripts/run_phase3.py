@@ -30,6 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 
 from fruresidual.config import load_config
+from fruresidual.eval.enrichment import category_enrichment
+from fruresidual.features.atlas import load_neurotransmitters
 from fruresidual.features.clustering import (
     build_knn_graph,
     build_profile_matrix,
@@ -45,6 +47,7 @@ from fruresidual.features.motifs import (
     check_degree_confound,
     identify_mixed_strata,
     partner_type_enrichment,
+    partner_type_enrichment_degree_adjusted,
 )
 from fruresidual.viz.phase3 import plot_cluster_scatter, plot_motif_enrichment
 
@@ -56,6 +59,22 @@ MIN_MOTIF_NEURONS = 10
 # resolution=0.1 never validated against real data; fixed 2026-09-18
 # during a full-project audit).
 CLUSTER_RESOLUTION_SWEEP = [0.02, 0.05, 0.1, 0.2, 0.3]
+
+# Annotation dimensions carried over from Phase 1. Phase 1 tested these
+# MARGINALLY (whole dimorphic population at once), which predates the
+# ol_intrinsic saturation discovery -- so they carried the same regional
+# confound the motif/cluster analyses were fixed for. They are re-tested
+# here WITHIN each mixed stratum instead.
+ANNOTATION_DIMENSIONS = ["itoleeHl", "trumanHl", "somaNeuromere", "consensus_nt", "somaSide"]
+
+# "Not yet assigned a lineage" buckets, not real biological categories.
+# Both were the single largest hit in their dimension in Phase 1
+# (putative_primary n=74, TBD n=44), and a neuron missing BOTH a fru/dsx
+# call and a confident lineage call plausibly just means "under-annotated
+# neuron" rather than "biologically distinct lineage" -- exactly the
+# base-rate confound docs/phase1_results.md flagged and asked to be
+# resolved before these were trusted. Excluded from the shortlist.
+PLACEHOLDER_LABELS = frozenset({"putative_primary", "TBD"})
 
 
 def main() -> None:
@@ -69,6 +88,10 @@ def main() -> None:
     residual_body_ids = set(dimorphic.loc[~dimorphic["has_fru_dsx"], "bodyId"])
     print(f"dimorphic/male-specific: {len(dimorphic)}, residual: {len(residual_body_ids)}")
 
+    # consensus_nt lives in a separate bulk file, same join run_phase1 does
+    # -- needed for the stratified annotation-dimension re-test below.
+    dimorphic = dimorphic.merge(load_neurotransmitters(cfg), on="bodyId", how="left")
+
     mixed_strata = identify_mixed_strata(dimorphic, residual_body_ids, min_group_size=MIN_GROUP_SIZE)
     print(f"\nsuperclasses with >= {MIN_GROUP_SIZE} of both residual and explained "
           f"(the only ones where a within-region comparison is non-tautological):")
@@ -81,6 +104,7 @@ def main() -> None:
 
     all_motif_results, all_cluster_results, shortlist, degree_confound_results = [], [], [], []
     resolution_sweep_results = []
+    all_annotation_results = []
 
     for _, stratum_row in mixed_strata.iterrows():
         sc = stratum_row["superclass"]
@@ -106,20 +130,72 @@ def main() -> None:
             stratum_motif_profile, stratum_residual, stratum_ids, min_neurons=MIN_MOTIF_NEURONS
         )
         motif_result["superclass"] = sc
-        all_motif_results.append(motif_result)
         sig_motifs = motif_result[motif_result["significant"]]
-        print(f"  motifs: {len(sig_motifs)}/{len(motif_result)} significant "
-              f"(of {stratum_motif_profile['partner_type'].nunique()} raw distinct types)"
-              + (" -- READ WITH DEGREE-CONFOUND CAVEAT ABOVE" if degree_check["degree_confounded"] else ""))
-        if len(sig_motifs):
-            print(sig_motifs.head(10)[["category", "n_in_subset", "pct_of_subset", "odds_ratio", "p_adj"]]
+
+        # --- degree-adjusted motif enrichment (the one that counts) ---
+        # The marginal test above cannot distinguish "residual neurons
+        # prefer partner type X" from "residual neurons connect to more
+        # of everything". This holds degree constant; only motifs that
+        # survive it reach the shortlist.
+        adjusted = partner_type_enrichment_degree_adjusted(
+            stratum_motif_profile, stratum_residual, stratum_ids, min_neurons=MIN_MOTIF_NEURONS
+        )
+        adjusted["superclass"] = sc
+        adjusted = adjusted.rename(columns={
+            "odds_ratio": "odds_ratio_degree_adjusted", "p_value": "p_value_degree_adjusted",
+            "p_adj": "p_adj_degree_adjusted", "significant": "significant_degree_adjusted",
+        })
+        motif_result = motif_result.merge(
+            adjusted[["category", "odds_ratio_degree_adjusted", "p_value_degree_adjusted",
+                      "p_adj_degree_adjusted", "significant_degree_adjusted", "converged"]],
+            on="category", how="left",
+        )
+        all_motif_results.append(motif_result)
+        sig_adjusted = motif_result[motif_result["significant_degree_adjusted"].fillna(False)]
+
+        print(f"  motifs: {len(sig_motifs)}/{len(motif_result)} significant (marginal, degree-CONFOUNDED)"
+              + (" <- inflated by the degree difference above" if degree_check["degree_confounded"] else ""))
+        print(f"  motifs: {len(sig_adjusted)}/{len(motif_result)} significant after holding degree constant"
+              f"  ({100*len(sig_adjusted)/max(len(sig_motifs),1):.1f}% of the marginal hits survive)")
+        if len(sig_adjusted):
+            print(sig_adjusted.head(10)[["category", "n_in_subset", "pct_of_subset",
+                                         "odds_ratio_degree_adjusted", "p_adj_degree_adjusted"]]
                   .to_string(index=False))
-        for _, row in sig_motifs.iterrows():
+        for _, row in sig_adjusted.iterrows():
             shortlist.append({
                 "signature_type": f"connectivity_motif[{sc}]", "category": row["category"],
-                "pct_of_residual": row["pct_of_subset"], "odds_ratio": row["odds_ratio"], "p_adj": row["p_adj"],
-                "degree_confounded": degree_check["degree_confounded"],
+                "pct_of_residual": row["pct_of_subset"],
+                "odds_ratio": row["odds_ratio_degree_adjusted"],
+                "p_adj": row["p_adj_degree_adjusted"],
+                "degree_confounded": False,  # survived explicit degree adjustment
             })
+
+        # --- Phase-1 annotation dimensions, re-tested WITHIN this stratum ---
+        stratum_rows = dimorphic[dimorphic["bodyId"].isin(stratum_ids)]
+        stratum_residual_mask = stratum_rows["bodyId"].isin(stratum_residual)
+        for dim in ANNOTATION_DIMENSIONS:
+            if dim not in stratum_rows.columns:
+                continue
+            sub = stratum_rows.loc[stratum_residual_mask, dim].dropna()
+            bg = stratum_rows[dim].dropna()
+            if sub.empty or bg.empty or bg.nunique() < 2:
+                continue
+            ann = category_enrichment(sub, bg)
+            ann["superclass"] = sc
+            ann["dimension"] = dim
+            ann["is_placeholder"] = ann["category"].isin(PLACEHOLDER_LABELS)
+            all_annotation_results.append(ann)
+            for _, row in ann[ann["significant"] & ~ann["is_placeholder"]].iterrows():
+                shortlist.append({
+                    "signature_type": f"annotation_{dim}[{sc}]", "category": row["category"],
+                    "pct_of_residual": row["pct_of_subset"], "odds_ratio": row["odds_ratio"],
+                    "p_adj": row["p_adj"],
+                    # Region-stratified now (unlike Phase 1's marginal
+                    # version), but these are annotation labels rather
+                    # than connectivity, so the degree check does not
+                    # apply -- left None rather than claimed either way.
+                    "degree_confounded": None,
+                })
 
         # --- clustering within this stratum: resolution sensitivity sweep ---
         stratum_superclass_profile = superclass_profile[superclass_profile["bodyId"].isin(stratum_ids)]
@@ -202,30 +278,26 @@ def main() -> None:
                 degree_confounded_strata=set(),
             )
 
-    # fold in Phase 1's dimensions -- those were already computed marginally
-    # (not per-superclass), but hemilineage/neurotransmitter/neuromere are
-    # not the SAME confound axis as superclass, so including them as
-    # additional (separately caveated) candidate lines is reasonable --
-    # flagged explicitly in the writeup, not silently merged as equivalent
-    # evidence to the stratified motif/cluster results above.
-    for dim in ("itoleeHl", "trumanHl", "somaNeuromere", "consensus_nt", "somaSide"):
-        path = cfg.data_processed / f"phase1_enrichment_{dim}.csv"
-        if not path.exists():
-            continue
-        dim_result = pd.read_csv(path)
-        for _, row in dim_result[dim_result["significant"]].iterrows():
-            shortlist.append({
-                "signature_type": f"phase1_marginal_{dim}", "category": row["category"],
-                "pct_of_residual": row["pct_of_subset"], "odds_ratio": row["odds_ratio"], "p_adj": row["p_adj"],
-                # "marginal" in the signature_type name is the caveat that
-                # matters here: these were NOT region-stratified (Phase 1
-                # predates discovering the ol_intrinsic saturation issue),
-                # so some may carry the same regional-confound risk that
-                # motifs/clusters above were corrected for. Not degree-
-                # checked either -- neither caveat resolved, both flagged
-                # via the signature_type label rather than guessed at.
-                "degree_confounded": None,
-            })
+    annotation_all = pd.concat(all_annotation_results, ignore_index=True) if all_annotation_results else pd.DataFrame()
+    if len(annotation_all):
+        annotation_all.to_csv(
+            cfg.data_processed / "phase3_annotation_enrichment_stratified.csv", index=False
+        )
+    print(f"\n{'='*60}")
+    print("Phase-1 annotation dimensions, re-tested WITHIN strata")
+    print(f"{'='*60}")
+    if len(annotation_all):
+        sig_ann = annotation_all[annotation_all["significant"]]
+        print(f"{len(sig_ann)}/{len(annotation_all)} category-in-stratum tests significant "
+              f"(Phase 1's marginal versions gave 30 across the whole population)")
+        if len(sig_ann):
+            print(sig_ann[["superclass", "dimension", "category", "n_in_subset",
+                           "pct_of_subset", "odds_ratio", "p_adj"]].to_string(index=False))
+        n_placeholder = int(annotation_all["is_placeholder"].sum())
+        print(f"\nplaceholder categories excluded from the shortlist: {n_placeholder} "
+              f"({sorted(PLACEHOLDER_LABELS)})")
+    else:
+        print("none testable")
 
     shortlist_df = pd.DataFrame(shortlist).sort_values("p_adj") if shortlist else pd.DataFrame()
     shortlist_df.to_csv(cfg.data_processed / "phase3_candidate_shortlist.csv", index=False)

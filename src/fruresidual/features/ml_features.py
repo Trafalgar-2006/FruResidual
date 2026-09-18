@@ -59,8 +59,16 @@ def build_features(
     df = population.merge(conn_features, on="bodyId", how="left")
 
     X = df[["bodyId"]].copy()
+    # One-hot, not .cat.codes. These are nominal categories with no
+    # ordering, and integer codes assert a false one: a linear model reads
+    # "superclass 7" as seven times "superclass 1". Tree baselines are
+    # immune (they split on arbitrary thresholds), which is exactly why
+    # the bug was invisible in the gradient-boosting numbers while
+    # quietly handicapping ridge. Cardinality here is low (~35 columns
+    # total), so one-hot costs nothing.
     for col in NON_LEAKING_CATEGORICALS:
-        X[col] = df[col].astype("category").cat.codes
+        dummies = pd.get_dummies(df[col].astype("category"), prefix=col, dtype=float)
+        X = pd.concat([X, dummies], axis=1)
     X["total_connectivity_weight"] = df["total_connectivity_weight"].fillna(0)
     X["n_partner_superclasses"] = df["n_partner_superclasses"].fillna(0)
     X["connectivity_entropy"] = df["connectivity_entropy"].fillna(0)

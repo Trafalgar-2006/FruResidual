@@ -32,7 +32,20 @@ def roi_summary():
 
 
 def test_no_fine_grained_sub_rois_leak_through(roi_summary):
-    assert not roi_summary.index.str.contains("_col_|_layer_|-", regex=True).any()
+    # Columns, layers and antennal-lobe glomeruli must all be filtered.
+    assert not roi_summary.index.str.contains(r"_col_|_layer_", regex=True).any()
+    assert not roi_summary.index.str.contains(r"^AL-(?!unspecified)", regex=True).any()
+
+
+def test_coarse_neuropils_with_hyphens_are_not_dropped(roi_summary):
+    # Regression test for a real bug (2026-09-19): the filter used a bare
+    # "-", but neuPrint writes "excluding X" with a minus sign inside
+    # parentheses, so LAL(-GA), CRE(-ROB)(-RUB) and SAD(-AMMC) are COARSE
+    # neuropils, not subdivisions. 16 legitimate regions carrying 1.48M
+    # synweight were silently missing from the atlas -- including LAL, a
+    # known sexually dimorphic region.
+    for roi in ("LAL(-GA)(L)", "LAL(-GA)(R)", "CRE(-ROB)(-RUB)(L)", "SAD(-AMMC)"):
+        assert roi in roi_summary.index, f"{roi} was dropped from the atlas"
 
 
 def test_optic_lobe_neuropils_are_almost_entirely_residual(roi_summary):

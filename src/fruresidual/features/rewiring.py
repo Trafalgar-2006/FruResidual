@@ -7,12 +7,16 @@ Scope decision, made explicit rather than silently assumed: FlyWire
 "case" neurons here are restricted to brain-like superclasses (excludes
 vnc_*, ascending_neuron, descending_neuron -- these have no fair
 FlyWire-side comparison since their defining connectivity leaves the
-brain). Within that scope, both sides' partner profiles are further
-restricted to the 10 superclass buckets FlyWire can express -- computed
-via SHARED_CATEGORIES below -- so a synapse to a VNC partner (which
-MaleCNS can see and FlyWire structurally cannot) never masquerades as a
-"wiring difference" driven by biology when it's actually a dataset
-coverage gap.
+brain). Within that scope, both sides' partner profiles are restricted
+to the 10 buckets SHARED_CATEGORIES defines, so a partner only one
+dataset can see never masquerades as a "wiring difference" driven by
+biology when it is actually a dataset coverage gap.
+
+That restriction has to hold in BOTH directions, which is the part an
+earlier version of this module got wrong: it dropped MaleCNS-only
+partner categories but left two FlyWire-only ones (ascending/descending)
+in the comparison vector. See the MALECNS_TO_SHARED comment below; the
+module-level assert now enforces symmetry at import time.
 """
 
 from __future__ import annotations
@@ -41,8 +45,23 @@ SHARED_CATEGORIES = [
     "descending", "sensory_ascending", "visual_centrifugal", "motor", "endocrine",
 ]
 
-# MaleCNS superclass -> shared category. Values not in this map (VNC-only
-# ones) are dropped when building profiles.
+# MaleCNS superclass -> shared category. Values not in this map are
+# dropped when building profiles.
+#
+# ascending_neuron/descending_neuron map to FlyWire's ascending/descending
+# and must NOT be dropped. They were, until 2026-09-19, and that was a
+# real bug: FlyWire reports ascending/descending partners (104K weight
+# across 293 of 371 types) while the male side was structurally unable to
+# express those two dimensions at all, so every bit of that female-side
+# weight inflated the cosine distance one-sidedly -- exactly the
+# coverage-gap-as-wiring-difference artifact this module's docstring
+# claims to prevent. It accounted for ~76% of the measured signal.
+#
+# Being excluded from the CASE population (VNC_ONLY_SUPERCLASSES, since a
+# neuron whose defining connectivity leaves the brain can't be fairly
+# scored against brain-only FlyWire) is a separate question from being a
+# valid PARTNER category -- an ascending neuron is a perfectly real
+# partner of a brain neuron, and both datasets can see that partner.
 MALECNS_TO_SHARED = {
     "ol_intrinsic": "optic",
     "ol_sensory": "optic",
@@ -56,7 +75,21 @@ MALECNS_TO_SHARED = {
     "visual_centrifugal": "visual_centrifugal",
     "sensory_ascending": "sensory_ascending",
     "sensory_ascending_tbc": "sensory_ascending",
+    "ascending_neuron": "ascending",
+    "descending_neuron": "descending",
 }
+
+# Categories reachable from each side. Every SHARED_CATEGORY must be
+# reachable from the MaleCNS side too, or the comparison is asymmetric by
+# construction -- asserted at import so the bug above cannot silently
+# return if either vocabulary changes.
+_MALE_REACHABLE = set(MALECNS_TO_SHARED.values())
+_UNREACHABLE = [c for c in SHARED_CATEGORIES if c not in _MALE_REACHABLE]
+assert not _UNREACHABLE, (
+    f"SHARED_CATEGORIES contains categories no MaleCNS superclass maps to: {_UNREACHABLE}. "
+    "The male profile vector would always be 0 there while FlyWire's is not, inflating "
+    "cosine distance one-sidedly. Either map a MaleCNS superclass to them or remove them."
+)
 
 
 def select_case_control_population(
@@ -123,9 +156,18 @@ def profile_vector(category_weights: dict[str, float]) -> np.ndarray:
 
 
 def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
-    """1 - cosine similarity. Returns 1.0 (max distance) if either vector
-    is all-zero (no shared-category connectivity to compare)."""
+    """1 - cosine similarity.
+
+    Returns NaN, not 1.0, when either vector is all-zero. An all-zero
+    profile means "this neuron has no connectivity in the shared
+    categories, so there is nothing to compare" -- that is missing data,
+    and scoring it as 1.0 would assert maximal rewiring on the basis of
+    no evidence, putting it above every genuinely-measured neuron. NaN
+    makes callers drop it explicitly instead (scripts/run_phase2_data.py
+    does). No neuron in the current population hits this path, but the
+    1.0 default was a silent trap if coverage ever changed.
+    """
     norm_a, norm_b = np.linalg.norm(a), np.linalg.norm(b)
     if norm_a == 0 or norm_b == 0:
-        return 1.0
+        return float("nan")
     return float(1 - np.dot(a, b) / (norm_a * norm_b))

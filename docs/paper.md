@@ -24,14 +24,15 @@ sharply the optic lobes (95–100% residual) and less sharply the VNC/GNG
 periphery (70–76%), against a well-explained central brain (14–32%); (2)
 a gradient-boosting model predicts wiring difference from connectivity
 structure alone about as well as one that also sees *fru*/*dsx*
-(R²=0.507 vs. 0.499 — the genetic label adds nothing once structure is
+(R²=0.219 vs. 0.216 — the genetic label adds nothing once structure is
 in the model), while a graph neural network on the connectome subgraph
-is too seed-unstable on this population to beat that baseline reliably
-(R²=0.399 ± 0.478 over 10 seeds); (3) one stratum,
-ascending neurons, yields a non-confounded, resolution-robust
+is too seed-unstable on this population to beat that baseline at all
+(R²=-0.592 ± 1.000 over 10 seeds); (3) one stratum,
+ascending neurons, yields a degree-adjusted, resolution-robust
 connectivity-cluster signature concentrating 60.7% of its residual
-neurons in one cluster (odds ratio 2.68) plus 68 significant
-partner-type motifs; (4) an independent female reconstruction (BANC)
+neurons in one cluster (odds ratio 2.68) plus 25 partner-type motifs
+that survive Cochran-Mantel-Haenszel adjustment for connectivity
+intensity; (4) an independent female reconstruction (BANC)
 confirms the residual and the *fru*/*dsx*-explained set as dimorphic at
 statistically indistinguishable rates (86.8% vs. 82.1%, p=0.547),
 arguing the residual reflects real biology rather than an annotation or
@@ -168,9 +169,9 @@ connectivity structure rather than raw annotation density.
 
 | model | R² without fru/dsx | R² with fru/dsx | Δ |
 |---|---|---|---|
-| ridge (CV mean) | 0.327 ± 0.176 | 0.334 ± 0.172 | +0.007 |
-| gradient boosting (CV mean) | **0.507 ± 0.178** | 0.499 ± 0.182 | −0.008 |
-| GNN (10-seed mean, subgraph) | 0.399 ± 0.478 | — | — |
+| ridge (CV mean) | 0.090 ± 0.154 | 0.092 ± 0.154 | +0.002 |
+| gradient boosting (CV mean) | **0.219 ± 0.138** | 0.216 ± 0.132 | −0.003 |
+| GNN (10-seed mean, subgraph) | −0.592 ± 1.000 | — | — |
 
 Both ablation differences are well inside one cross-validation standard
 deviation — adding *fru*/*dsx* as a feature does not improve prediction
@@ -181,13 +182,26 @@ the genetic label at all. **This ablation — the actual Phase 2
 deliverable — rests entirely on the deterministic sklearn baselines and
 is unaffected by the GNN result below.**
 
-The GNN does **not** reliably beat those baselines. Swept over 10 seeds
-it gives R² = 0.399 ± 0.478, ranging from −0.762 to +0.882, and beats
-the gradient-boosting baseline on only 6 of 10 seeds — its mean sits
-below the baseline. With 1,268 nodes, 7,441 internal edges and a
-~190-node test split, there simply isn't enough data to train this GNN
-stably. The plan pre-registered exactly this outcome ("if the GNN
-doesn't beat gradient boosting, report that"), so it is reported.
+The GNN does **not** beat those baselines. Swept over 10 seeds it gives
+R² = −0.592 ± 1.000, ranging from −2.324 to +0.556, and beats the
+gradient-boosting baseline on only 3 of 10 seeds. With 1,268 nodes,
+7,441 internal edges and a ~190-node test split, there simply isn't
+enough data to train this GNN stably. The plan pre-registered exactly
+this outcome ("if the GNN doesn't beat gradient boosting, report that"),
+so it is reported.
+
+The absolute R² values here are much lower than earlier versions of this
+document reported (gradient boosting 0.507, GNN 0.399) because the
+**target itself was rebuilt**. `SHARED_CATEGORIES` contained two partner
+categories (`ascending`, `descending`) that FlyWire could express and no
+MaleCNS superclass mapped to, so the male profile vector was
+structurally zero there while the female one was not — inflating cosine
+distance one-sidedly across 293 of 371 types and accounting for ~76% of
+the measured signal. Predictability fell with it, which is the expected
+direction: the artifact tracked superclass, a feature the model had, so
+the model was substantially predicting the artifact. The case/control
+separation survives the correction (Mann-Whitney p=8.0e-16, effect size
++0.259), as does the ablation conclusion. See `docs/phase2_results.md`.
 
 An earlier version of this writeup claimed R²=0.735 and "clearly beats
 both baselines." That was an artifact of two compounding errors, both
@@ -208,17 +222,41 @@ resolution that had drifted to an unvalidated fixed value contradicting
 the code's own documented sensitivity-sweep requirement. Full detail in
 `docs/phase3_results.md`.
 
-Of the three testable strata, only `ascending_neuron` survives every
-check: 68 significant partner-type motifs (BH-corrected), and a Leiden
-cluster split significant at 3 of 5 swept resolutions (stable from
-resolution 0.1 upward) concentrating 60.7% of residual neurons in one
-cluster against 33% of background (odds ratio 2.68, p_adj=0.012) — with
-no detected degree confound (Mann-Whitney p=0.855). `cb_intrinsic` shows
-1,397 nominally significant motifs but is degree-confounded (residual
-neurons ~24% higher connectivity degree, p=0.0075) and shows zero cluster
-structure at any swept resolution — a clean null, not an unexplored
-parameter space. `vnc_intrinsic` is smaller, similarly degree-confounded,
-and its one weak cluster hit (1/5 resolutions) is not robust.
+A fourth gap — the degree confound — was corrected rather than merely
+flagged. Every partner-type motif is now tested with
+Cochran-Mantel-Haenszel within quartile bins of connectivity degree, so
+residual neurons are compared only against explained neurons of
+comparable connectivity intensity. Only motifs surviving that reach the
+shortlist:
+
+| stratum | degree-confounded? | marginal | degree-adjusted |
+|---|---|---|---|
+| ascending_neuron | no | 68 | **25** |
+| cb_intrinsic | yes | 1,397 | **1,429** |
+| vnc_intrinsic | yes | 306 | **44** |
+
+`ascending_neuron` remains the best-supported result: 25 motifs survive
+(headline hits `INXXX230`, `INXXX058`, `INXXX306`, `DNpe030` among them,
+odds ratios 6–23), plus a Leiden cluster split significant at 3 of 5
+swept resolutions concentrating 60.7% of residual neurons in one cluster
+against 33% of background (odds ratio 2.68, p_adj=0.012), with no
+detected degree confound (Mann-Whitney p=0.855).
+
+`vnc_intrinsic` largely dissolved — 86% of its motifs were degree
+artifact, confirming the old caveat's suspicion. `cb_intrinsic` did
+**not**: its motifs survive at 102%, so degree does not explain them, and
+the previous "read with a degree caveat" warning is resolved. What
+remains notable there is breadth — 29% of all tested partner types — which
+reads as a diffuse population-level connectivity difference rather than a
+specific circuit signature, and it still shows zero cluster structure at
+any swept resolution.
+
+Two further corrections tightened the shortlist: Phase 1's annotation
+dimensions are now re-tested *within* strata instead of being folded in
+marginally (they previously carried the same regional confound the motif
+analysis had been fixed for), and the unassigned-lineage placeholders
+`putative_primary` and `TBD` — each the largest hit in its dimension —
+are excluded as under-annotation rather than biology.
 
 ### 4.5 Independent replication (Phase 4)
 
@@ -257,10 +295,17 @@ Collected from each phase's own writeup, not softened:
   exactly match the published figure** (79.0% vs. 60.3%), narrowed to a
   likely data-snapshot version difference but not conclusively resolved.
   Does not affect the gate verdict.
-- **Phase 1's regional pattern cannot yet distinguish biology from
-  ascertainment bias** on its own — the same *fru*/*dsx* annotation
-  effort that produced the residual pattern was itself concentrated in
-  the central brain.
+- **The biology-vs-ascertainment-bias question is narrowed, not
+  settled.** Phase 1's regional pattern cannot distinguish them on its
+  own, since the annotation effort that produced it was itself
+  concentrated in the central brain. Phase 3 provides the first real
+  evidence against pure ascertainment: `cb_intrinsic` sits in the
+  *well-annotated* central brain — where "residual = under-annotated" is
+  least plausible — and its residual neurons show connectivity
+  differences that survive both regional stratification and degree
+  adjustment. That argues the residual is not purely an annotation
+  artifact. It says nothing about the poorly-annotated periphery, where
+  the ambiguity remains wide open.
 - **Phase 2's wiring-difference metric is coarse** (10 superclass-level
   partner categories, not fine partner identity) and **brain-only**
   (FlyWire has no VNC), so any genuinely VNC-driven rewiring is
@@ -270,10 +315,12 @@ Collected from each phase's own writeup, not softened:
   any claim about graph structure carrying signal beyond per-neuron
   features. A defensible version would need k-fold cross-validation over
   the graph and a larger population than this case-control design gives.
-- **Phase 3's `cb_intrinsic` and `vnc_intrinsic` results are
-  degree-confounded** and not separable from that confound with the
-  tools built here (would need degree-matched sampling or a covariate
-  model) — reported as a caveat, not corrected.
+- **Phase 3's `cb_intrinsic` result is broad rather than specific.** The
+  degree confound is now corrected (Cochran-Mantel-Haenszel), and its
+  motifs survive it — but 29% of all tested partner types coming out
+  significant describes a diffuse population-level difference, not a
+  circuit signature. `vnc_intrinsic`'s motifs were 86% degree artifact
+  and its remainder (44 motifs) is small.
 - **Phase 4 validates the dimorphism *classification*, not Phase 2's or
   Phase 3's specific numeric metrics** — BANC's public table gives a
   categorical call, not a continuous score, so no rank-correlation

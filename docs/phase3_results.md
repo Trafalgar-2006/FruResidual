@@ -64,7 +64,7 @@ small): `ol_intrinsic`, `descending_neuron`, `cb_motor`,
 `sensory_descending`, `visual_centrifugal`, `visual_projection`,
 `vnc_motor`.
 
-## A third confound, found and reported (not corrected)
+## A third confound — now CORRECTED (2026-09-19), not just reported
 
 Checking whether residual and explained neurons differ in raw
 connectivity intensity before trusting the motif counts:
@@ -79,19 +79,66 @@ In `cb_intrinsic` and `vnc_intrinsic`, residual neurons are
 systematically more connected overall (not just to specific partners) —
 a higher-degree neuron is more likely to touch any given partner type by
 chance, which can inflate apparent motif enrichment broadly without
-reflecting a specific circuit. This was **not** corrected (would need
-degree-matched sampling or a covariate-adjusted model, e.g. logistic
-regression instead of marginal Fisher tests per category — left as
-future work) — it is reported and every downstream result from those two
-strata is flagged with it, rather than presented as clean.
+reflecting a specific circuit.
+
+This is now corrected rather than merely flagged.
+`partner_type_enrichment_degree_adjusted` bins neurons into quartiles of
+partner-type degree and runs a **Cochran-Mantel-Haenszel** test — each
+partner type is tested within degree bins, comparing residual against
+explained neurons of comparable connectivity intensity, never across
+degree levels. Only motifs that survive this reach the shortlist.
+
+CMH rather than logistic regression, for a reason found empirically: a
+per-type `is_residual ~ connects + log(degree)` logit was tried first and
+is unusable here. Many partner types are touched by nearly all residual
+and nearly no explained neurons within a stratum — perfect separation —
+where an unpenalized fit will not converge and a weakly-penalized one
+drives the log-likelihood to zero, manufacturing p-values near 0 and odds
+ratios above 1e5. It reported *more* "significant" motifs than the
+uncorrected test (353 vs 68 on `ascending_neuron`), inverting the whole
+point of the correction. CMH is conditional, stays finite on sparse
+tables, and degrades to "not significant" rather than to false
+confidence. The pooled odds ratio carries a Haldane-Anscombe +0.5
+correction so that completely-separated types get a large finite estimate
+instead of an infinity that would be silently discarded.
+
+### What survived
+
+| superclass | degree-confounded? | marginal | degree-adjusted | survived |
+|---|---|---|---|---|
+| ascending_neuron | no | 68 | **25** | 37% |
+| cb_intrinsic | yes | 1,397 | **1,429** | 102% |
+| vnc_intrinsic | yes | 306 | **44** | 14% |
+
+Three genuinely different outcomes:
+
+- **`vnc_intrinsic` was mostly artifact.** 86% of its motifs vanish once
+  degree is held constant — consistent with it having the worst confound
+  (residual mean degree 518 vs 285). This is the result the old caveat
+  correctly suspected.
+- **`ascending_neuron` narrows but holds.** 25 of 68 survive, and the
+  headline hits (`INXXX230`, `INXXX058`, `INXXX306`, `DNpe030`) are among
+  them, now with credible odds ratios of 6-23 rather than the marginal
+  test's 30-45. This stratum had no detected degree confound, so a modest
+  reduction from a stricter conditional test is what you would expect.
+- **`cb_intrinsic` does NOT collapse.** Its motifs survive at 102% —
+  conditioning on degree slightly *increases* detections, because
+  removing degree as a source of variance sharpens the within-bin
+  comparison in a stratum with n=1,551. **The old "read `cb_intrinsic`
+  with a degree caveat" warning is therefore resolved: degree does not
+  explain these associations.** What remains notable is their sheer
+  breadth — 1,429 of 4,860 tested types (29%) — which reads more like a
+  broad population-level connectivity difference than a specific circuit
+  motif, and should be described that way.
 
 ## Results by stratum
 
 ### ascending_neuron — the cleanest result (no detected confound)
 
-68/1,902 partner types significant after BH correction; strongest hits
-are specific interneuron types (`INXXX230`, `INXXX058`, `INXXX306`,
-odds ratios 30-45) — see
+68/1,902 partner types significant marginally, **25 after degree
+adjustment**; strongest hits are specific interneuron types
+(`INXXX230`, `INXXX058`, `INXXX306`, degree-adjusted odds ratios 17-23,
+marginal 30-45) — see
 `reports/figures/phase3/motif_enrichment_unconfounded_only.png`. Leiden
 clustering, swept across 5 resolutions, finds a **robust** (significant
 at 3/5, stable from resolution 0.1 upward) 2-cluster split; residual
@@ -105,24 +152,31 @@ interneuron partners and cluster together connectivity-wise, independent
 of the degree confound found elsewhere, and the cluster split isn't an
 artifact of one arbitrary resolution choice.
 
-### cb_intrinsic — largest stratum, but degree-confounded
+### cb_intrinsic — largest stratum, and the degree caveat is now resolved
 
-1,397/4,860 partner types nominally significant — read with the degree
-caveat above. Top hits (`DNg96`, `SMP204/361`, `APL`, `MBON33`, several
-`LAL*`/`SMP*`/`CB*` central-complex-and-mushroom-body-adjacent types)
-span diverse central-brain neuropils, not one obviously redundant
-region — more plausible as partially real than the original
-`ol_intrinsic` tautology, but not separable from the degree effect with
-this analysis alone. Clustering here is a clean null, and confirmed as
+1,397/4,860 partner types significant marginally, **1,429 after degree
+adjustment** — the associations survive holding connectivity intensity
+constant, so degree does not explain them. Top hits (`DNg96`,
+`SMP204/361`, `APL`, `MBON33`, several `LAL*`/`SMP*`/`CB*`
+central-complex-and-mushroom-body-adjacent types) span diverse
+central-brain neuropils, not one obviously redundant region.
+
+The remaining caveat is breadth, not confounding: 29% of all tested
+partner types come out significant, which is more consistent with
+`cb_intrinsic` residual neurons differing broadly in connectivity than
+with a specific circuit signature. Clustering here is a clean null, and confirmed as
 such by the sweep: 0/5 resolutions found any significant cluster (at
 resolution 0.3 it splits into 6 clusters and still none are enriched for
 residual) — this isn't a case of "the right resolution wasn't tried,"
 there's genuinely no cluster-level structure here to find.
 
-### vnc_intrinsic — small, also degree-confounded
+### vnc_intrinsic — small, and mostly degree artifact
 
-306/1,019 significant, same caveat, even more pronounced (residual mean
-degree 518 vs 285 — nearly 2x). Clustering: significant at only 1/5 swept
+306/1,019 significant marginally, **44 after degree adjustment** — 86%
+vanish. This stratum had the worst confound (residual mean degree 518 vs
+285, nearly 2x), and the correction confirms that most of its apparent
+motif enrichment was that confound rather than circuit-specific signal.
+Clustering: significant at only 1/5 swept
 resolutions (0.3, where it first splits into 2 clusters — n=66 is small
 enough that this could easily be a small-sample artifact of that specific
 split) — excluded from the shortlist for not being robust, not because
@@ -130,27 +184,54 @@ nothing was found at any resolution.
 
 ## Consolidated shortlist
 
-`data_processed/phase3_candidate_shortlist.csv` (1,802 rows) pools:
-region-stratified motifs, region-stratified clusters (only from strata
-where the cluster finding was robust across the resolution sweep — just
-`ascending_neuron`, 1 row), and Phase 1's already-computed marginal
-(unstratified) hemilineage/neurotransmitter/neuromere/side dimensions.
-The `degree_confounded` column is `True`/
-`False` for motifs (directly checked), `None` for clusters (different
-statistical basis — L2-normalized profiles partially mitigate but don't
-rule out a degree effect) and for the folded-in Phase 1 dimensions
-(**not** stratification-checked at all — Phase 1 predates discovering
-the `ol_intrinsic` saturation issue, so those entries carry the same
-un-resolved regional-confound risk this phase fixed for motifs/clusters).
-Read the shortlist in tiers, not as one flat ranked list:
+`data_processed/phase3_candidate_shortlist.csv` (**1,531 rows**, was
+1,802 before the degree correction) pools:
 
-1. **Trust most**: `ascending_neuron` motifs/cluster — stratified, not
-   degree-confounded.
-2. **Directionally interesting, confound-caveated**: `cb_intrinsic`/
-   `vnc_intrinsic` motifs — stratified but degree-confounded.
-3. **Least resolved**: `phase1_marginal_*` entries — neither
-   stratification- nor degree-checked; included for completeness, not
-   because they're more trustworthy than their p-values alone suggest.
+| component | rows |
+|---|---|
+| `connectivity_motif[cb_intrinsic]` | 1,429 |
+| `connectivity_motif[vnc_intrinsic]` | 44 |
+| `connectivity_motif[ascending_neuron]` | 25 |
+| `annotation_*[stratum]` (hemilineage, neuromere, NT, side) | 32 |
+| `connectivity_cluster[ascending_neuron, res=0.1]` | 1 |
+
+**Every motif row on this list has passed the CMH degree adjustment**, so
+`degree_confounded` is `False` for all 1,498 of them rather than `True`
+for 1,703 as before. The 33 `None` entries are the clusters and the
+annotation dimensions, where the degree check does not apply (clusters
+use L2-normalized profiles and single-label enrichment; annotation labels
+are not connectivity at all) — left unclaimed rather than asserted either
+way.
+
+Two further changes closed the old "least resolved" tier entirely:
+
+- **Phase 1's annotation dimensions are no longer folded in marginally.**
+  They were previously copied straight from Phase 1, which computed them
+  over the whole dimorphic population and predates the `ol_intrinsic`
+  saturation discovery — carrying exactly the regional confound this
+  phase had fixed for motifs and clusters. They are now **re-tested
+  within each stratum** and named `annotation_<dim>[<stratum>]`. That
+  reduces them from 30 marginal hits to 32 stratified category-in-stratum
+  hits, and the surviving ones (e.g. `FLAa3`, `LALa1_anterior`,
+  `VLPl&p2_lateral` within `cb_intrinsic`) are now region-controlled.
+- **Unassigned-lineage placeholders are excluded.**
+  `docs/phase1_results.md` flagged that `itoleeHl`'s largest hit was
+  `putative_primary` (n=74, "not yet confidently assigned a lineage") and
+  `trumanHl`'s was literally `TBD` (n=44), and asked for a base-rate check
+  before trusting them. A neuron missing both a fru/dsx call and a
+  confident lineage call plausibly just means "under-annotated neuron",
+  not "biologically distinct lineage", so these are now dropped from the
+  shortlist outright (4 placeholder categories excluded), not ranked as
+  biology.
+
+Read in two tiers now rather than three:
+
+1. **Best supported**: `ascending_neuron` motifs and its cluster —
+   stratified, degree-adjusted, and resolution-robust.
+2. **Real but broad**: `cb_intrinsic` motifs (degree-adjusted, so no
+   longer confound-caveated, but 29% of all tested types — a
+   population-level difference rather than a specific circuit) and the
+   much smaller `vnc_intrinsic` remainder.
 
 ## Honest bottom line
 
@@ -160,16 +241,33 @@ in one of three testable strata, and that one held up under every check
 this phase could throw at it — not degree-confounded, and the cluster
 split is stable across a resolution sweep rather than an artifact of one
 parameter choice. The `ascending_neuron` finding is a real,
-non-tautological, non-degree-confounded, resolution-robust candidate
+non-tautological, degree-adjusted, resolution-robust candidate
 second-driver signature — specific interneuron partners plus a
-distinguishable connectivity cluster, both statistically defensible. The
-larger `cb_intrinsic` result is suggestive at the motif level but shows
-no cluster-level structure at all (a clean null across every swept
-resolution) and isn't separable from a genuine connectivity-intensity
-confound with the tools built here. This phase's
-deliverable is exactly what PHASE 3 asks for — "a ranked shortlist of
-candidate signatures with effect sizes and corrected p-values" for
-further investigation — not a confirmed biological mechanism.
+distinguishable connectivity cluster, both statistically defensible.
+
+The larger `cb_intrinsic` result now also survives degree adjustment,
+which is a meaningful upgrade from "not separable from a connectivity-
+intensity confound" — but it shows no cluster-level structure at any
+swept resolution and is very broad (29% of tested types), so it reads as
+a diffuse population-level connectivity difference rather than a specific
+circuit signature. `vnc_intrinsic`, by contrast, largely dissolved under
+the same correction.
+
+**This bears on the project's central open question** (biology vs.
+annotation ascertainment bias, see `docs/phase1_results.md`).
+`cb_intrinsic` sits in the central brain — the region that received ~75%
+of the fru/dsx annotation effort, and therefore the region where
+"residual = under-annotated" is *least* plausible. Finding that its
+residual neurons have connectivity differences which survive both
+regional stratification and degree adjustment is evidence that the
+residual is not purely an annotation-coverage artifact. It does not
+settle the question for the poorly-annotated periphery, where the
+ambiguity remains wide open.
+
+This phase's deliverable is exactly what PHASE 3 asks for — "a ranked
+shortlist of candidate signatures with effect sizes and corrected
+p-values" for further investigation — not a confirmed biological
+mechanism.
 
 ## What this unblocks
 

@@ -42,11 +42,20 @@ def roi_residual_summary(roi_long: pd.DataFrame, residual_body_ids: set[int]) ->
 
     Excludes fine sub-neuropil parcellations: optic-lobe columns
     ("ME_R_col_30_31"), optic-lobe layers ("ME_L_layer_08"), and
-    antennal-lobe glomeruli ("AL-VA1d(R)") -- together ~4,386 of the
-    ~4,560 raw ROI entries in this dataset. They trivially inherit their
+    antennal-lobe glomeruli ("AL-VA1d(R)") -- together ~4,370 of the
+    ~4,559 raw ROI entries in this dataset. They trivially inherit their
     parent neuropil's residual rate at far higher cardinality and add no
     information over the coarse neuropil names (e.g. "ME(R)", "AL(R)")
     they subdivide.
+
+    The glomerulus pattern is anchored to "AL-" specifically. It used to
+    be a bare "-", which over-matched badly: neuPrint writes "excluding X"
+    with a minus sign inside parentheses, so LAL(-GA), CRE(-ROB)(-RUB)
+    and SAD(-AMMC) are coarse neuropils, not subdivisions -- along with
+    the VNC tectula (WTct(UTct-T2) etc.) and the "*-unspecified" buckets,
+    16 legitimate regions carrying 1.48M synweight were being silently
+    dropped from the atlas entirely (fixed 2026-09-19). LAL in particular
+    is a known sexually dimorphic region, so its absence mattered.
 
     CAUTION: neuPrint's remaining ROI names are still a nested hierarchy,
     not disjoint regions -- e.g. a synapse in "SIP(R)" is also counted
@@ -60,7 +69,9 @@ def roi_residual_summary(roi_long: pd.DataFrame, residual_body_ids: set[int]) ->
     pre/post/downstream/upstream synapse counts, not a raw synapse
     tally -- roughly 2-3x the simple pre+post sum in spot checks.
     """
-    is_fine_grained = roi_long["roi"].str.contains("_col_|_layer_|-", regex=True)
+    is_fine_grained = roi_long["roi"].str.contains(
+        r"_col_|_layer_|^AL-(?!unspecified)", regex=True
+    )
     roi_long = roi_long[~is_fine_grained].copy()
     roi_long["is_residual"] = roi_long["bodyId"].isin(residual_body_ids)
     summary = (

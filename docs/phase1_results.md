@@ -55,6 +55,25 @@ ROI had pre=134, post=326 (sum 460) but synweight=1342, roughly 3x
 higher. Everywhere in this doc "% residual" means "% of synapse
 *weight*," consistently — never raw synapse count.
 
+### 16 coarse neuropils were missing from this atlas until 2026-09-19
+
+The sub-ROI filter used a bare `-` to catch antennal-lobe glomeruli
+(`AL-VA1d(R)`), but neuPrint writes "excluding X" with a minus sign
+*inside parentheses*, so `LAL(-GA)`, `CRE(-ROB)(-RUB)` and `SAD(-AMMC)`
+are **coarse neuropils, not subdivisions**. Along with the VNC tectula
+(`WTct(UTct-T2)` etc.) and the `*-unspecified` buckets, 16 legitimate
+regions carrying 1.48M synweight (3.8% of the retained total) were being
+silently dropped. LAL in particular is a known sexually dimorphic region,
+so its absence mattered. The pattern is now anchored to `^AL-` and the
+atlas covers 191 regions instead of 175.
+
+The restored regions **reinforce** the gradient rather than complicate
+it: LAL 28.7/33.6% and CRE 38.9/35.3% sit in the central-brain band,
+`SAD(-AMMC)` at 60.0% and `VNC-unspecified` at 65.8% sit in the
+intermediate band near GNG, the tectula run 43-87%, and
+`Optic-unspecified(L)` is 93.8%, right alongside the other optic-lobe
+neuropils. Regression-pinned in `test_phase1_integration.py`.
+
 This is a real, sharp regional
 gradient, not an artifact of one specific `ol_intrinsic` label — see
 `reports/figures/phase1/roi_residual_by_pct.png` for the full ranked
@@ -94,6 +113,15 @@ above) are named, real hemilineages and worth carrying forward, but
 should be re-checked against the whole-population base rate of
 "unassigned" labels before treating the ranked list at face value in
 Phase 3.
+
+**Resolved 2026-09-19.** Phase 3 no longer inherits these marginal
+results at all: it re-tests every annotation dimension *within* each
+mixed stratum (so they get the same regional-confound control the motif
+and cluster analyses have), and it excludes `putative_primary` and `TBD`
+from the candidate shortlist outright as unassigned-lineage buckets
+rather than biology. See `docs/phase3_results.md`. The tables in this
+document are still the marginal, unstratified versions and should be
+read as Phase 1's own view, not as the shortlist's evidence.
 
 ## Interpretation — and the standing ambiguity
 

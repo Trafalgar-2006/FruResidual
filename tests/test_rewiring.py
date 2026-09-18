@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from fruresidual.features.rewiring import (
+    MALECNS_TO_SHARED,
     SHARED_CATEGORIES,
     cosine_distance,
     malecns_superclass_to_shared,
@@ -38,10 +39,29 @@ def test_cosine_distance_orthogonal_vectors_is_one():
     assert cosine_distance(a, b) == pytest.approx(1.0, abs=1e-9)
 
 
-def test_cosine_distance_handles_all_zero_vector():
+def test_cosine_distance_returns_nan_for_all_zero_vector():
+    # An empty profile means "nothing to compare", which is missing data.
+    # This used to return 1.0 -- asserting MAXIMAL rewiring from zero
+    # evidence, which would rank such a neuron above every genuinely
+    # measured one. NaN forces callers to drop it instead.
     a = np.zeros(len(SHARED_CATEGORIES))
     b = profile_vector({"optic": 10})
-    assert cosine_distance(a, b) == 1.0
+    assert np.isnan(cosine_distance(a, b))
+    assert np.isnan(cosine_distance(b, a))
+    assert np.isnan(cosine_distance(a, a))
+
+
+def test_every_shared_category_is_reachable_from_both_datasets():
+    # Regression test for a real bug (2026-09-19): 'ascending'/'descending'
+    # sat in SHARED_CATEGORIES with no MaleCNS superclass mapping to them,
+    # so the male profile vector was structurally 0 in those dimensions
+    # while FlyWire's was not -- inflating cosine distance one-sidedly for
+    # 293 of 371 types and accounting for ~76% of the measured signal.
+    # rewiring.py asserts this at import; pinned here too so the intent is
+    # visible in the test suite.
+    reachable = set(MALECNS_TO_SHARED.values())
+    unreachable = [c for c in SHARED_CATEGORIES if c not in reachable]
+    assert unreachable == [], f"male side cannot express: {unreachable}"
 
 
 def _toy_population():

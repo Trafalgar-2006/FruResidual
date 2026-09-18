@@ -35,16 +35,86 @@ categories are dropped from both sides, not zero-filled, so a data-
 coverage gap can't masquerade as a wiring difference). The target is
 `1 - cosine_similarity` between the two profiles.
 
-Sanity check (regression-pinned in `test_phase2_integration.py`): cases'
-mean wiring-difference (0.0146) is higher than controls' (0.0066) — the
-metric points the right direction before any model touches it.
+### The target was rebuilt on 2026-09-19 — a category asymmetry inflated it ~4x
+
+`SHARED_CATEGORIES` listed `ascending` and `descending`, and **no MaleCNS
+superclass mapped to either**, so the male profile vector was
+structurally zero in those two dimensions while the FlyWire vector was
+not. FlyWire carried 104,092 weight (3.6%) there, across **293 of 371
+types**. Every bit of it inflated cosine distance one-sidedly — precisely
+the "dataset coverage gap masquerading as wiring difference" that
+`rewiring.py`'s own docstring claimed to prevent. It accounted for ~76%
+of the measured signal.
+
+The fix is a *mapping*, not a deletion: MaleCNS does have
+`ascending_neuron` (55,808 weight) and `descending_neuron` (117,265) as
+partner superclasses, they were simply being dropped as "VNC partners."
+Being excluded from the *case population* (a neuron whose defining
+connectivity leaves the brain can't be scored fairly against brain-only
+FlyWire) is a separate question from being a valid *partner category* —
+an ascending neuron is a perfectly real partner of a brain neuron, and
+both datasets can see it. `rewiring.py` now asserts at import that every
+shared category is reachable from both sides, so this cannot return.
+
+Deleting the two categories instead — the first fix attempted — made
+cases score *lower* than controls, which is what made it clear that
+deletion was the wrong remedy rather than a real finding.
+
+| | cases | controls | ratio |
+|---|---|---|---|
+| old (inflated) mean | 0.01461 | 0.00663 | 2.20 |
+| **corrected mean** | **0.00339** | **0.00322** | 1.05 |
+| corrected median | 0.000724 | 0.000297 | 2.44 |
+
+Sanity check (regression-pinned in `test_phase2_integration.py`): cases
+still show higher wiring difference than controls, Mann-Whitney
+p=8.0e-16, rank-biserial effect size +0.259 (down from the inflated
++0.301). The test now uses that rank test rather than a bare mean
+comparison — the distribution is heavily right-skewed with a fatter
+control tail, so the two *means* sit close together even though the rank
+separation is large. Spearman correlation between old and corrected
+targets is 0.90: the bug inflated magnitudes roughly fourfold but largely
+preserved rank order, which is why the finding survives.
+
+`cosine_distance` also used to return 1.0 (maximum difference) for an
+empty profile, asserting maximal rewiring from zero evidence. It now
+returns NaN and `run_phase2_data.py` drops those rows. No neuron in the
+current population hits this path — it was a latent trap, not an active
+bug.
 
 ## The ablation: fru/dsx adds ~nothing on top of structure
 
+Numbers below are on the corrected target, so they are **not** comparable
+to the pre-2026-09-19 figures (R²=0.507 etc.), which were fitted to a
+target that was ~76% artifact.
+
 | model | R² without fru/dsx | R² with fru/dsx | difference |
 |---|---|---|---|
-| ridge | 0.327 ± 0.176 | 0.334 ± 0.172 | +0.007 |
-| gradient_boosting | **0.507 ± 0.178** | 0.499 ± 0.182 | -0.008 |
+| ridge | 0.090 ± 0.154 | 0.092 ± 0.154 | +0.002 |
+| gradient_boosting | **0.219 ± 0.138** | 0.216 ± 0.132 | -0.003 |
+
+Predictability dropped sharply along with the target (gradient boosting
+0.507 → 0.219), and that is the expected direction: the artifact was
+driven by *ascending/descending partner weight*, which correlates
+strongly with superclass — a feature the model had. The model was
+substantially predicting the artifact, and the artifact was structural,
+hence easy to predict. What remains is the real, and much more modest,
+predictable component.
+
+**The headline conclusion is unchanged**: both ablation differences are
+far inside one cross-validation standard deviation, so fru/dsx still adds
+nothing once structure is in the model.
+
+The ridge baseline was also mis-specified twice over, fixed in the same
+pass: nominal categoricals (`superclass`, `subclass`, `somaSide`,
+`consensus_nt`) were integer-coded with `.cat.codes`, asserting a false
+ordering to a *linear* model, and features spanning thousands
+(`total_connectivity_weight`) down to [0,3] (`connectivity_entropy`) were
+fed to an L2 penalty unscaled, so regularization hit them unequally. Now
+one-hot encoded, with `StandardScaler` inside the CV pipeline (so the
+scaler refits per fold rather than leaking test-fold statistics). Tree
+baselines are invariant to both problems, which is exactly why this was
+invisible in the gradient-boosting numbers.
 
 Both differences are far inside one cross-validation standard deviation.
 **Adding a fru/dsx feature does not improve wiring-difference prediction
@@ -63,9 +133,9 @@ region, is doing real work here."
 
 | model | test R² | test MAE |
 |---|---|---|
-| ridge (without fru/dsx) | 0.327 ± 0.176 (CV mean) | 0.020 |
-| gradient_boosting (without fru/dsx) | **0.507 ± 0.178** (CV mean) | 0.009 |
-| GNN (population-internal subgraph, 7,441 edges) | **0.399 ± 0.478** (10-seed mean) | 0.009 |
+| ridge (without fru/dsx) | 0.090 ± 0.154 (CV mean) | 0.005 |
+| gradient_boosting (without fru/dsx) | **0.219 ± 0.138** (CV mean) | 0.004 |
+| GNN (population-internal subgraph, 7,441 edges) | **-0.592 ± 1.000** (10-seed mean) | 0.004 |
 
 **This section previously claimed the GNN "clearly beats both baselines"
 at R²=0.735. That was wrong, and the way it was wrong is worth
@@ -85,9 +155,14 @@ recording.** Two compounding errors:
    CV folds; the GNN was a single 15% test split (~190 nodes).
 
 Reporting the GNN the same way the baselines are reported — swept over
-10 seeds (`GNN_SEEDS` in `scripts/run_phase2.py`) — gives R² = **0.399 ±
-0.478**, spanning **-0.762 to +0.882**. It beats the gradient-boosting
-baseline on **6 of 10 seeds**, and its mean is *below* that baseline.
+10 seeds (`GNN_SEEDS` in `scripts/run_phase2.py`), which is
+repeated-random-subsampling cross-validation, each seed drawing a fresh
+train/val/test split as well as a fresh initialization — gives
+R² = **-0.592 ± 1.000** on the corrected target, spanning **-2.324 to
++0.556**. It beats the gradient-boosting baseline on **3 of 10 seeds**,
+and its mean is far below it. (On the old inflated target the same sweep
+gave 0.399 ± 0.478 and 6/10; the conclusion was already negative and the
+corrected target makes it more so.)
 
 So the honest answer to the plan's pre-registered question ("if the GNN
 doesn't beat gradient boosting, report that") is: **it doesn't, not
@@ -122,16 +197,21 @@ neuron's residual (actual - predicted). Most residuals cluster near
 zero (most neurons are well-explained by structure alone); a small tail
 extends to |residual| > 0.25.
 
-An unplanned observation worth flagging for Phase 3: several of the
-largest-residual neurons are **controls** (labeled isomorphic) whose
-*actual* wiring-difference is surprisingly high (0.48-0.67) despite the
-model predicting near-zero. This wasn't the residual signal Phase 0/1
-was built around (that one is about fru/dsx-negative *dimorphic*
-neurons), but it's a distinct, concrete lead: either a handful of
-isomorphic-labeled neurons are mislabeled, or they're genuinely
-wired differently despite lacking any dimorphism annotation at all — a
-second, independent thread pointing at the same kind of gap the whole
-project is chasing.
+An unplanned observation was flagged here for Phase 3: several
+isomorphic-labelled **controls** with surprisingly high actual wiring
+difference (reported as 0.48-0.67). **Checked against the corrected
+target on 2026-09-19: that specific lead was mostly the category-asymmetry
+artifact.** Zero controls now reach 0.48; the largest control value is
+0.357.
+
+A weaker version does survive and is worth keeping on the list: 5
+controls still exceed the 99th percentile of the case distribution, and
+the three largest model residuals in the whole population are controls
+(bodyIds 47081, 87905, 157110 — actual 0.357/0.185/0.111 against
+predictions near 0.02). So "a handful of isomorphic-labelled neurons look
+genuinely rewired" remains a real, if much smaller, thread — either
+mislabelled, or wired differently with no dimorphism annotation at all.
+It is no longer the striking effect the original number implied.
 
 ## Limitations, stated plainly
 

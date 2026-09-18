@@ -6,7 +6,26 @@ from fruresidual.features.motifs import (
     filter_by_min_count,
     identify_mixed_strata,
     partner_type_enrichment,
+    partner_type_enrichment_degree_adjusted,
 )
+
+
+def _degree_confounded_profile():
+    """Residual neurons are simply MORE CONNECTED -- they touch every
+    partner type more often, with no type-specific preference at all.
+    The marginal Fisher test should light up across the board (that is
+    the confound). The degree-adjusted test should not, because once
+    overall degree is held constant there is no signal left.
+    """
+    rows = []
+    types = [f"T{t}" for t in range(20)]
+    for i in range(60):  # residual: touch 18 of 20 types
+        for t in types[:18]:
+            rows.append({"bodyId": i, "partner_type": t, "weight": 5})
+    for i in range(60, 120):  # explained: touch 6 of 20 types, same types
+        for t in types[:6]:
+            rows.append({"bodyId": i, "partner_type": t, "weight": 5})
+    return pd.DataFrame(rows), set(range(60)), set(range(120))
 
 
 def _toy_profile():
@@ -160,3 +179,51 @@ def test_identify_mixed_strata_excludes_saturated_regions():
     assert "B" in set(mixed["superclass"])  # has >=20 of both -- genuinely testable
     b_row = mixed[mixed["superclass"] == "B"].iloc[0]
     assert b_row["n_residual"] == 100 and b_row["n_explained"] == 100
+
+
+def test_degree_adjustment_removes_a_purely_degree_driven_false_positive():
+    """The core justification for partner_type_enrichment_degree_adjusted:
+    when residual neurons simply connect to MORE things with no
+    type-specific preference, the marginal Fisher test reports many
+    "significant" motifs that are pure degree artifact. Holding degree
+    constant should collapse them.
+    """
+    profile, residual_ids, background_ids = _degree_confounded_profile()
+
+    marginal = partner_type_enrichment(profile, residual_ids, background_ids, min_neurons=5)
+    adjusted = partner_type_enrichment_degree_adjusted(
+        profile, residual_ids, background_ids, min_neurons=5
+    )
+
+    n_marginal = int(marginal["significant"].sum())
+    n_adjusted = int(adjusted["significant"].sum())
+
+    # The confound is real and the marginal test falls for it...
+    assert n_marginal > 0
+    # ...and the degree-adjusted test does not.
+    assert n_adjusted < n_marginal
+    assert n_adjusted == 0
+
+
+def test_degree_adjustment_keeps_a_genuine_type_specific_signal():
+    """Guards the opposite failure: over-correcting until nothing can ever
+    be detected. Here degree is matched between groups and only ONE type
+    is genuinely preferred, which must survive adjustment.
+    """
+    rows = []
+    for i in range(60):  # residual: 10 shared types + HubType
+        for j in range(10):
+            rows.append({"bodyId": i, "partner_type": f"T{j}", "weight": 5})
+        rows.append({"bodyId": i, "partner_type": "HubType", "weight": 5})
+    for i in range(60, 120):  # explained: 10 shared types + OtherType (same degree)
+        for j in range(10):
+            rows.append({"bodyId": i, "partner_type": f"T{j}", "weight": 5})
+        rows.append({"bodyId": i, "partner_type": "OtherType", "weight": 5})
+    profile = pd.DataFrame(rows)
+
+    adjusted = partner_type_enrichment_degree_adjusted(
+        profile, set(range(60)), set(range(120)), min_neurons=5
+    )
+    hub = adjusted[adjusted["category"] == "HubType"]
+    assert len(hub) == 1
+    assert bool(hub.iloc[0]["significant"])

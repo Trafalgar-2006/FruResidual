@@ -15,11 +15,22 @@ import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold, cross_val_predict, cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 def _models(random_state: int) -> dict:
     return {
-        "ridge": Ridge(alpha=1.0, random_state=random_state),
+        # Ridge is scale-sensitive twice over: its L2 penalty shrinks
+        # coefficients in the units they are measured in, so without
+        # standardization a feature in the thousands
+        # (total_connectivity_weight) is penalized far less per unit than
+        # one in [0, 3] (connectivity_entropy), and the fit is driven by
+        # arbitrary units rather than signal. Scaling lives inside the
+        # pipeline so it is refit per CV fold -- fitting the scaler on all
+        # rows first would leak test-fold statistics into training.
+        # LightGBM is scale-invariant and deliberately left unscaled.
+        "ridge": make_pipeline(StandardScaler(), Ridge(alpha=1.0)),
         "gradient_boosting": LGBMRegressor(random_state=random_state, verbosity=-1, n_estimators=100),
     }
 

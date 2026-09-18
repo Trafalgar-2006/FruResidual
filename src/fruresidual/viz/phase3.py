@@ -18,27 +18,43 @@ def plot_motif_enrichment(
     """`motif_result` must have a "superclass" column (the stratum each
     row's test ran within -- see scripts/run_phase3.py) so bars are
     labeled by stratum, not just partner type: a combined top-N-by-
-    p-value chart with unlabeled bars would silently hide which results
-    come from a degree-confounded stratum (see motifs.check_degree_confound)
-    and which don't, an easy way to mislead a reader into treating every
-    bar as equally trustworthy.
+    p-value chart with unlabeled bars would silently hide which stratum
+    each result came from, an easy way to mislead a reader into treating
+    every bar as equally trustworthy.
+
+    Plots the DEGREE-ADJUSTED statistics when they are present (they are,
+    since scripts/run_phase3.py started running the Cochran-Mantel-
+    Haenszel test) and falls back to the marginal ones otherwise. This
+    matters: plotting marginal odds ratios next to a degree-adjusted
+    shortlist would show the reader a chart of numbers that no longer
+    back the conclusions drawn from it.
     """
     degree_confounded_strata = degree_confounded_strata or set()
-    df = motif_result.sort_values("p_adj").head(top_n).iloc[::-1].copy()
+    adjusted = "p_adj_degree_adjusted" in motif_result.columns
+    p_col = "p_adj_degree_adjusted" if adjusted else "p_adj"
+    or_col = "odds_ratio_degree_adjusted" if adjusted else "odds_ratio"
+    sig_col = "significant_degree_adjusted" if adjusted else "significant"
+
+    df = motif_result.dropna(subset=[p_col]).sort_values(p_col).head(top_n).iloc[::-1].copy()
     df["label"] = df.apply(
         lambda r: f"{r['category']} [{r['superclass']}]"
-        + (" ⚠" if r["superclass"] in degree_confounded_strata else ""),
+        + (" †" if r["superclass"] in degree_confounded_strata else ""),
         axis=1,
     )
-    colors = [_SIG_COLOR if s else _NONSIG_COLOR for s in df["significant"]]
+    colors = [_SIG_COLOR if s else _NONSIG_COLOR for s in df[sig_col].fillna(False)]
 
-    fig, ax = plt.subplots(figsize=(8, max(2.5, 0.3 * len(df))))
-    ax.barh(df["label"], df["odds_ratio"], color=colors)
+    fig, ax = plt.subplots(figsize=(8.5, max(2.5, 0.3 * len(df))))
+    ax.barh(df["label"], df[or_col], color=colors)
     ax.set_xscale("log")
-    ax.set_xlabel("Odds ratio (residual vs. explained, within stratum), log scale")
+    ax.set_xlabel(
+        ("Degree-adjusted odds ratio (CMH, residual vs. explained within stratum)" if adjusted
+         else "Odds ratio (residual vs. explained, within stratum)") + ", log scale"
+    )
     ax.set_title(
         f"Connectivity-motif enrichment: top {top_n} by p-value\n"
-        f"⚠ = stratum has a detected degree confound (see writeup)"
+        + ("adjusted for connectivity degree (CMH)\n† = degree differs between groups in this stratum"
+           if adjusted else "† = stratum has a detected degree confound (see writeup)"),
+        fontsize=10,
     )
     ax.axvline(1, color="black", linewidth=0.8, linestyle="--")
     fig.tight_layout()

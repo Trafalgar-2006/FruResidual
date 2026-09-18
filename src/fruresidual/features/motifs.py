@@ -14,6 +14,7 @@ that could plausibly reach significance, and is applied BEFORE testing
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 from scipy.stats import fisher_exact
 from statsmodels.stats.multitest import multipletests
@@ -94,6 +95,138 @@ def check_degree_confound(
         "degree_difference_p_value": float(p_value),
         "degree_confounded": bool(p_value < 0.05),
     }
+
+
+def partner_type_enrichment_degree_adjusted(
+    partner_profile_long: pd.DataFrame,
+    residual_body_ids: set[int],
+    background_body_ids: set[int],
+    min_neurons: int = 10,
+    alpha: float = 0.05,
+    n_degree_strata: int = 4,
+    min_odds_ratio: float = 2.0,
+) -> pd.DataFrame:
+    """Degree-adjusted version of partner_type_enrichment.
+
+    The marginal Fisher test in partner_type_enrichment cannot separate
+    "residual neurons preferentially connect to type X" from "residual
+    neurons are more highly connected overall, so they touch everything
+    more" -- a confound measured as real in cb_intrinsic (residual mean
+    degree 399 vs 322, p=0.0075) and vnc_intrinsic (518 vs 285,
+    p=1.7e-6).
+
+    Method: Cochran-Mantel-Haenszel. Neurons are binned into
+    `n_degree_strata` quantile bins of partner-type degree, a 2x2
+    [residual? x connects-to-type?] table is built per bin, and the
+    association is tested conditional on those bins -- i.e. comparing
+    residual against explained neurons of COMPARABLE connectivity
+    intensity, never across degree levels.
+
+    CMH rather than logistic regression on purpose. A per-type
+    `is_residual ~ connects + log(degree)` logit was tried first and is
+    unusable here: many partner types are touched by ~all residual and ~no
+    explained neurons within a stratum (perfect separation), where an
+    unpenalized fit will not converge and a weakly-penalized one drives
+    the log-likelihood to zero, manufacturing p-values near 0 and odds
+    ratios above 1e5. That inverted the method's purpose -- it reported
+    MORE "significant" motifs than the uncorrected test (353 vs 68 on
+    ascending_neuron). CMH is conditional, stays finite on sparse tables,
+    and degrades to "not significant" rather than to false confidence.
+    """
+    from statsmodels.stats.contingency_tables import StratifiedTable
+
+    if not residual_body_ids <= background_body_ids:
+        raise ValueError("residual_body_ids must be a subset of background_body_ids")
+
+    filtered = filter_by_min_count(partner_profile_long, min_neurons)
+    degree = filtered.groupby("bodyId")["partner_type"].nunique()
+
+    body_ids = sorted(background_body_ids)
+    is_residual = np.array([b in residual_body_ids for b in body_ids])
+    deg = degree.reindex(body_ids).fillna(0).to_numpy(dtype=float)
+
+    # Quantile bins; duplicates='drop' collapses ties so a degenerate
+    # degree distribution yields fewer (not broken) strata.
+    try:
+        bins = pd.qcut(deg, q=n_degree_strata, labels=False, duplicates="drop")
+    except (ValueError, IndexError):
+        bins = np.zeros(len(deg), dtype=int)
+    bins = np.asarray(bins)
+    bins = np.where(pd.isna(bins), 0, bins).astype(int)
+
+    rows = []
+    for ptype, group in filtered.groupby("partner_type"):
+        connected = set(group["bodyId"])
+        connects = np.array([b in connected for b in body_ids])
+        n_in_subset = int((connects & is_residual).sum())
+
+        tables = []
+        for b in np.unique(bins):
+            m = bins == b
+            a = int((connects & is_residual & m).sum())
+            bb = int((~connects & is_residual & m).sum())
+            c = int((connects & ~is_residual & m).sum())
+            d = int((~connects & ~is_residual & m).sum())
+            # A bin with an empty row or column margin carries no
+            # information about the association; including it only adds
+            # zeros to the CMH sums.
+            if (a + bb) == 0 or (c + d) == 0 or (a + c) == 0 or (bb + d) == 0:
+                continue
+            tables.append([[a, bb], [c, d]])
+
+        if not tables:
+            rows.append({
+                "category": ptype, "n_in_subset": n_in_subset,
+                "n_in_background": int(connects.sum()),
+                "odds_ratio": float("nan"), "p_value": float("nan"),
+                "n_degree_strata_used": 0, "converged": False,
+            })
+            continue
+
+        try:
+            st = StratifiedTable(np.asarray(tables, dtype=float).transpose(1, 2, 0))
+            pval = float(st.test_null_odds().pvalue)
+            # Mantel-Haenszel pooled odds ratio with a Haldane-Anscombe
+            # +0.5 per cell -- same correction fruresidual.eval.enrichment
+            # applies, for the same reason. Without it a partner type
+            # touched by every residual and no explained neuron in a
+            # stratum makes the denominator exactly zero, so the OR comes
+            # back as inf and the type gets discarded as "non-finite" --
+            # silently throwing away the strongest signals.
+            arr = np.asarray(tables, dtype=float) + 0.5
+            a, b = arr[:, 0, 0], arr[:, 0, 1]
+            c, d = arr[:, 1, 0], arr[:, 1, 1]
+            n = a + b + c + d
+            odds = float(np.sum(a * d / n) / np.sum(b * c / n))
+            converged = bool(np.isfinite(pval) and np.isfinite(odds))
+        except Exception:
+            pval, odds, converged = float("nan"), float("nan"), False
+
+        rows.append({
+            "category": ptype, "n_in_subset": n_in_subset,
+            "n_in_background": int(connects.sum()),
+            "odds_ratio": odds, "p_value": pval,
+            "n_degree_strata_used": len(tables), "converged": converged,
+        })
+
+    result = pd.DataFrame(rows)
+    if not len(result):
+        result["p_adj"] = []
+        result["significant"] = []
+        return result
+
+    # BH correction over converged fits only -- including NaN p-values
+    # would silently inflate the correction denominator.
+    result["p_adj"] = float("nan")
+    ok = result["converged"] & result["p_value"].notna()
+    if ok.any():
+        result.loc[ok, "p_adj"] = multipletests(
+            result.loc[ok, "p_value"], alpha=alpha, method="fdr_bh"
+        )[1]
+    # Same significance bar as the marginal test: BH-adjusted p plus a
+    # real effect size, so the two are directly comparable.
+    result["significant"] = ok & (result["p_adj"] < alpha) & (result["odds_ratio"] >= min_odds_ratio)
+    return result.sort_values("p_value", na_position="last").reset_index(drop=True)
 
 
 def partner_type_enrichment(
