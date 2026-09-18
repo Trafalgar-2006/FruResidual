@@ -117,4 +117,22 @@ enrichment. Doesn't yet distinguish real biology from an fru/dsx
 annotation-coverage bias toward the central brain (the plan already
 flags ~75% of annotation effort landed there) — that's Phase 3's job.
 
-Next: Phase 2, the predictive model — see docs/project_plan.md section (d).
+**Phase 2 (predictive model): done.** Run `python scripts/run_phase2_data.py`
+then `python scripts/run_phase2.py` to reproduce (needs both
+`NEUPRINT_TOKEN` and `CAVE_TOKEN`; the data step takes ~40 min — it
+queries live FlyWire connectivity for 371 matched cell types).
+Full writeup: [docs/phase2_results.md](docs/phase2_results.md). Figures:
+[reports/figures/phase2/](reports/figures/phase2/). Headline: on a
+634-case/634-control population (dimorphic vs. isomorphic, matched to
+FlyWire types), a gradient-boosting baseline predicts wiring difference
+reasonably well (R²=0.51) from structure alone — and adding fru/dsx as a
+feature adds nothing (R²=0.50, within noise). A GNN using the real
+connectome subgraph among these neurons does meaningfully better
+(R²=0.735), confirming graph structure carries real signal beyond
+per-neuron features. Per-neuron residual scores are saved for Phase 3,
+plus an unplanned lead: several isomorphic-labeled neurons show
+surprisingly high actual wiring difference, worth a look alongside
+Phase 3's main analysis.
+
+Next: Phase 3, turning the residual into a hypothesis — see
+docs/project_plan.md section (d).

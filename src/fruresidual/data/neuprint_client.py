@@ -48,3 +48,54 @@ def fetch_roi_info(cfg: Config, body_ids: list[int], batch_size: int = 500) -> p
         )
         chunks.append(df)
     return pd.concat(chunks, ignore_index=True)
+
+
+def fetch_partner_superclass_profile(cfg: Config, body_ids: list[int], batch_size: int = 200) -> pd.DataFrame:
+    """For each bodyId, aggregates connection weight to/from every partner
+    superclass, summed over both directions (upstream + downstream) --
+    the MaleCNS-side input to the Phase 2 wiring-difference target
+    (fruresidual.features.rewiring). Aggregation happens server-side in
+    Cypher (sum(weight) grouped by partner superclass), so the result set
+    stays small regardless of how many raw edges it's built from -- the
+    same targeted-query pattern used for Phase 1's ROI atlas.
+
+    Returns long format: (bodyId, partner_superclass, weight).
+    """
+    client = get_client(cfg)
+    ids = [int(x) for x in body_ids]
+    chunks = []
+    for i in range(0, len(ids), batch_size):
+        batch = ids[i : i + batch_size]
+        df = client.fetch_custom(
+            f"MATCH (n:Neuron)-[c:ConnectsTo]->(m:Neuron) WHERE n.bodyId IN {batch} "
+            "RETURN n.bodyId AS bodyId, m.superclass AS partner_superclass, sum(c.weight) AS weight "
+            "UNION "
+            f"MATCH (m:Neuron)-[c:ConnectsTo]->(n:Neuron) WHERE n.bodyId IN {batch} "
+            "RETURN n.bodyId AS bodyId, m.superclass AS partner_superclass, sum(c.weight) AS weight"
+        )
+        chunks.append(df)
+    long_df = pd.concat(chunks, ignore_index=True)
+    return long_df.groupby(["bodyId", "partner_superclass"], as_index=False)["weight"].sum()
+
+
+def fetch_population_edges(cfg: Config, body_ids: list[int], batch_size: int = 200) -> pd.DataFrame:
+    """Fetches directed edges where BOTH endpoints are in `body_ids` --
+    the graph structure for Phase 2's GNN. Restricted to population-
+    internal edges (not full 1-hop neighborhoods, which could explode to
+    thousands of extra nodes per seed) to keep the graph a size that
+    trains full-batch on a 4GB GPU without needing neighbor sampling.
+
+    Returns (source, target, weight).
+    """
+    client = get_client(cfg)
+    ids = [int(x) for x in body_ids]
+    chunks = []
+    for i in range(0, len(ids), batch_size):
+        batch = ids[i : i + batch_size]
+        df = client.fetch_custom(
+            f"MATCH (n:Neuron)-[c:ConnectsTo]->(m:Neuron) WHERE n.bodyId IN {batch} "
+            f"AND m.bodyId IN {ids} "
+            "RETURN n.bodyId AS source, m.bodyId AS target, c.weight AS weight"
+        )
+        chunks.append(df)
+    return pd.concat(chunks, ignore_index=True).drop_duplicates()
