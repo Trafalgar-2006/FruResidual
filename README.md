@@ -134,5 +134,27 @@ plus an unplanned lead: several isomorphic-labeled neurons show
 surprisingly high actual wiring difference, worth a look alongside
 Phase 3's main analysis.
 
-Next: Phase 3, turning the residual into a hypothesis — see
+**Phase 3 (hypothesis): done.** Run `python scripts/run_phase3.py` to
+reproduce (needs the cached profiles — see docs/phase3_results.md for
+the one-time fetch commands, ~1 min). Full writeup:
+[docs/phase3_results.md](docs/phase3_results.md). Figures:
+[reports/figures/phase3/](reports/figures/phase3/). This phase found and
+fixed two real bugs before trusting any result: a regional confound
+(`ol_intrinsic` was 100% residual — zero internal variance, making any
+comparison against it tautological) fixed by stratifying to superclasses
+with a genuine residual/explained mix, and a multi-label statistical bug
+(partner-type membership isn't single-label like superclass — the first
+implementation silently counted edges instead of neurons, corrupting
+every p-value). A third confound — residual neurons being more highly
+connected overall in 2 of 3 strata — was found and reported, not
+corrected. Headline: the cleanest, non-confounded result is in
+`ascending_neuron` (68 significant partner-type motifs, one
+connectivity cluster holding 60.7% of residual vs. 33% background,
+odds ratio 2.68) — a genuine candidate second-driver signature. The
+larger `cb_intrinsic` result (1,397 significant motifs) is degree-
+confounded and reported with that explicit caveat, not presented as
+clean. Consolidated ranked shortlist (1,802 candidates, read in tiers —
+see the writeup) saved to `data_processed/phase3_candidate_shortlist.csv`.
+
+Next: Phase 4, cross-dataset validation via BANC — see
 docs/project_plan.md section (d).
