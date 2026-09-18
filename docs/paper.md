@@ -34,7 +34,7 @@ neurons in one cluster (odds ratio 2.68) plus 25 partner-type motifs
 that survive Cochran-Mantel-Haenszel adjustment for connectivity
 intensity; (4) an independent female reconstruction (BANC)
 confirms the residual and the *fru*/*dsx*-explained set as dimorphic at
-statistically indistinguishable rates (86.8% vs. 82.1%, p=0.547),
+statistically indistinguishable rates (87.8% vs. 84.8%, p=0.768),
 arguing the residual reflects real biology rather than an annotation or
 matching artifact specific to one dataset. No new gene is identified —
 the contribution is a validated method and a concrete, falsifiable
@@ -269,14 +269,16 @@ the separate "view" permission BANC requires — confirmed directly (403
 response), not assumed. The phase pivoted to what BANC's public bulk
 metadata exposes without that permission: direct neuron-level
 cross-references (`malecns_match`) plus BANC's own independent
-`sexually_dimorphic` classification, yielding 13,942 unambiguous 1:1
-matches.
+`sexually_dimorphic` classification, yielding 17,206 matches (13,942
+unambiguous 1:1, plus 3,264 where several BANC fragments claim one
+MaleCNS neuron but all carry the same dimorphism call, so the ambiguity
+cannot change the answer).
 
 | population | n matched | % confirmed dimorphic by BANC |
 |---|---|---|
-| residual (fru/dsx-unexplained) | 106 | 86.8% |
-| explained (fru/dsx-positive) | 28 | 82.1% |
-| **difference** | | **p = 0.547 (not significant)** |
+| residual (fru/dsx-unexplained) | 115 | 87.8% |
+| explained (fru/dsx-positive) | 33 | 84.8% |
+| **difference** | | **p = 0.768 (not significant)** |
 
 This is the central Phase 4 result: an independent research group's
 independent female reconstruction confirms the residual and the
@@ -284,9 +286,9 @@ explained set as dimorphic at statistically indistinguishable rates. If
 the residual were mostly a matching artifact or MaleCNS-side annotation
 noise, it should be *less* reliably confirmed than the explained set —
 it isn't. Two robustness checks (added on audit) rule out two ways this
-could have been misleading: only 1 of the 134 matched dimorphic neurons
-is BANC-unassessed rather than a real disagreement (recall moves 85.8%→
-86.5% restricted to assessed-only neurons), and all 134 sit on
+could have been misleading: only 1 of the 148 matched dimorphic neurons
+is BANC-unassessed rather than a real disagreement (recall moves 87.2%→
+87.8% restricted to assessed-only neurons), and all 148 sit on
 BANC-proofread reconstructions.
 
 ## 5. Limitations, stated plainly
@@ -300,14 +302,28 @@ Collected from each phase's own writeup, not softened:
 - **The biology-vs-ascertainment-bias question is narrowed, not
   settled.** Phase 1's regional pattern cannot distinguish them on its
   own, since the annotation effort that produced it was itself
-  concentrated in the central brain. Phase 3 provides the first real
-  evidence against pure ascertainment: `cb_intrinsic` sits in the
+  concentrated in the central brain. Phase 3 provides the best evidence
+  against pure ascertainment: `cb_intrinsic` sits in the
   *well-annotated* central brain — where "residual = under-annotated" is
   least plausible — and its residual neurons show connectivity
   differences that survive both regional stratification and degree
   adjustment. That argues the residual is not purely an annotation
   artifact. It says nothing about the poorly-annotated periphery, where
   the ambiguity remains wide open.
+
+  A direct test was attempted and **failed for an instructive reason**
+  (`docs/annotation_crosscheck_results.md`). Re-checking the residual
+  against FlyWire's own `fru_dsx` column gives what looks like
+  overwhelming support for biology — 0% of 182 residual neurons are
+  FlyWire-fru/dsx-positive against 80.2% of the explained set, in strata
+  where FlyWire demonstrably does annotate fru/dsx, p=6.7e-67. It does
+  not count. FlyWire calls fru/dsx on **zero** neurons MaleCNS called
+  negative, so its labels are a strict subset of MaleCNS's and
+  P(FlyWire+ | MaleCNS−) = 0 holds by construction. The p-value measures
+  the annotation's provenance, not biology. Settling this needs a
+  genuinely independent fru/dsx source (FlyWire Codex's `gene` field, or
+  the Deutsch/Murthy-lab catalogue); the machinery is built and will run
+  unchanged against one.
 - **Phase 2's wiring-difference metric is coarse** (10 superclass-level
   partner categories, not fine partner identity) and **brain-only**
   (FlyWire has no VNC), so any genuinely VNC-driven rewiring is

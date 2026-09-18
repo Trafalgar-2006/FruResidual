@@ -35,7 +35,7 @@ Four independent lines of evidence, each gating the next:
 4. **Independently replicated** (Phase 4) — BANC, a second female
    reconstruction from a different research group, confirms the residual
    and the *fru*/*dsx*-explained set as dimorphic at statistically
-   indistinguishable rates (86.8% vs. 82.1%, p=0.547) — the residual
+   indistinguishable rates (87.8% vs. 84.8%, p=0.768) — the residual
    isn't disproportionately made of artifacts.
 
 No new gene or confirmed mechanism is claimed. See
@@ -227,15 +227,30 @@ BANC connectivity — not possible: our CAVE token authenticates fine but
 this account lacks the separate, non-self-serve "view" permission BANC's
 API requires. Adapted instead around what BANC's public bulk metadata
 *does* expose with no auth: direct neuron-level MaleCNS cross-matches
-plus BANC's own independent dimorphism calls. Matched 13,942 neurons
-unambiguously. Headline: BANC confirms 85.8% of MaleCNS's dimorphism
-calls (recall; precision is lower at 17.1% because BANC's own survey
+plus BANC's own independent dimorphism calls. Matched 17,206 neurons
+unambiguously. Headline: BANC confirms 87.2% of MaleCNS's dimorphism
+calls (recall; precision is lower at 16.5% because BANC's own survey
 flags more candidates overall — a real cross-group sensitivity
 difference, not disagreement). The actual finding: residual (fru/dsx-
 unexplained) and explained neurons are confirmed at statistically
-indistinguishable rates (86.8% vs 82.1%, p=0.547) — the residual isn't
+indistinguishable rates (87.8% vs 84.8%, p=0.768) — the residual isn't
 disproportionately made of artifacts, supporting that it reflects real,
 independently-replicable biology.
+
+**Annotation cross-check (biology vs. ascertainment bias): inconclusive,
+for an instructive reason.** Run
+`python scripts/run_annotation_crosscheck.py`. Full writeup:
+[docs/annotation_crosscheck_results.md](docs/annotation_crosscheck_results.md).
+This targets the project's central open question by re-checking the
+residual against FlyWire's own `fru_dsx` column. The raw result looks
+overwhelming (0% of 182 residual neurons FlyWire-positive vs. 80.2% of
+explained, p=6.7e-67) — and it does not count. FlyWire calls fru/dsx on
+zero neurons MaleCNS called negative, so its labels are a strict subset
+of MaleCNS's and the residual's 0% is true by construction. The script
+detects that nesting automatically and returns INCONCLUSIVE instead of
+the biology verdict the statistics would otherwise support. Resolving it
+needs a genuinely independent fru/dsx source; the machinery is built and
+will run unchanged against one.
 
 All four data-driven phases (0-4) are now complete.
 

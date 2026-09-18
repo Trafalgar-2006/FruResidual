@@ -33,24 +33,55 @@ BANC_DIMORPHIC_VALUES = frozenset({"dimorphic", "female-specific", "male-specifi
 BANC_ISOMORPHIC_VALUE = "isomorphic"
 
 
-def match_banc_to_malecns(banc_df: pd.DataFrame, malecns_body_ids: set[int]) -> pd.DataFrame:
-    """Restricts BANC to neurons with an unambiguous (exactly one BANC
-    row) match to a MaleCNS bodyId in `malecns_body_ids`. ~80.6% of all
-    malecns_match values are already 1:1 (verified 2026-09-19); the
-    remaining ~19% (one MaleCNS neuron claimed by multiple BANC
-    fragments) are excluded rather than arbitrarily resolved, since
-    there's no principled way to pick among ambiguous fragment matches
-    from this table alone.
+MATCH_COLUMNS = ["bodyId", "root_id", "cell_type", "sexually_dimorphic", "proofread"]
+
+
+def match_banc_to_malecns(
+    banc_df: pd.DataFrame,
+    malecns_body_ids: set[int],
+    resolve_ambiguous: bool = True,
+) -> pd.DataFrame:
+    """Matches BANC neurons to MaleCNS bodyIds via `malecns_match`.
+
+    ~80.6% of links are already 1:1. The remaining ~19% are one MaleCNS
+    neuron claimed by several BANC fragments, and picking a winner among
+    them arbitrarily would be unjustifiable.
+
+    `resolve_ambiguous=True` recovers the subset where picking a winner
+    is not necessary: when every competing fragment carries the SAME
+    `sexually_dimorphic` call, the ambiguity is real but irrelevant to
+    this analysis, because whichever fragment is "correct" the answer is
+    identical. Fragments that disagree are still dropped. Measured
+    2026-09-19: 3,264 of 3,349 ambiguous neurons have unanimous
+    fragments, of which 14 are MaleCNS-dimorphic -- so this recovers
+    134 -> 148 dimorphic matches (+10%), a modest gain, but discarding
+    data whose verdict is unanimous is a flaw rather than caution.
     """
     matched = banc_df[banc_df["malecns_match"].notna()].copy()
     matched["bodyId"] = pd.to_numeric(matched["malecns_match"], errors="coerce").astype("Int64")
     matched = matched[matched["bodyId"].isin(malecns_body_ids)]
 
-    unambiguous_ids = matched["bodyId"].value_counts()
-    unambiguous_ids = unambiguous_ids[unambiguous_ids == 1].index
-    matched = matched[matched["bodyId"].isin(unambiguous_ids)]
+    counts = matched["bodyId"].value_counts()
+    unambiguous = matched[matched["bodyId"].isin(counts[counts == 1].index)]
 
-    return matched[["bodyId", "root_id", "cell_type", "sexually_dimorphic", "proofread"]].reset_index(drop=True)
+    if not resolve_ambiguous:
+        return unambiguous[MATCH_COLUMNS].reset_index(drop=True)
+
+    ambiguous = matched[matched["bodyId"].isin(counts[counts > 1].index)]
+    if len(ambiguous):
+        # nunique(dropna=False) so an all-null group counts as unanimous
+        agreeing_ids = ambiguous.groupby("bodyId")["sexually_dimorphic"].nunique(dropna=False)
+        agreeing_ids = agreeing_ids[agreeing_ids <= 1].index
+        # every surviving fragment agrees, so the first is representative
+        resolved = (
+            ambiguous[ambiguous["bodyId"].isin(agreeing_ids)]
+            .sort_values("root_id")
+            .groupby("bodyId", as_index=False)
+            .first()
+        )
+        unambiguous = pd.concat([unambiguous[MATCH_COLUMNS], resolved[MATCH_COLUMNS]], ignore_index=True)
+
+    return unambiguous[MATCH_COLUMNS].reset_index(drop=True)
 
 
 def compute_concordance(

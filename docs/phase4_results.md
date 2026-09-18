@@ -30,24 +30,30 @@ answerable this way even without connectivity access.
 
 ## Matching
 
-`malecns_match` gives 23,608 raw BANC-to-MaleCNS links; 80.6% are
-already unambiguous 1:1 (verified directly), and the remaining ~19%
-(one MaleCNS neuron claimed by multiple BANC fragments) are excluded
-rather than arbitrarily resolved — there's no principled way to pick
-among ambiguous fragment matches from this table alone. Restricted to
-the 165,122-neuron traced population: **13,942 unambiguous matches**.
+`malecns_match` gives 23,608 raw BANC-to-MaleCNS links within the
+165,122-neuron traced population; 13,942 are already unambiguous 1:1.
+
+The remaining ~19% are one MaleCNS neuron claimed by several BANC
+fragments. Picking a winner among them arbitrarily would be
+unjustifiable, but there is a subset where no winner needs picking:
+when every competing fragment carries the **same** `sexually_dimorphic`
+call, the ambiguity is real but cannot change the answer. 3,264 of 3,349
+ambiguous neurons have unanimous fragments and are recovered; the 85
+whose fragments disagree are still dropped. Total: **17,206 matches**,
+of which **148 are MaleCNS-dimorphic** (up from 134 — a 10% power gain,
+not the large one first guessed).
 
 ## Recall is the number that answers the Phase 4 question; precision answers a different one
 
 | metric | value | what it means |
 |---|---|---|
-| recall (MaleCNS-dimorphic confirmed by BANC) | **85.8%** | of neurons *we* call dimorphic, how many does BANC also call dimorphic |
-| precision (BANC-dimorphic matches ours) | 17.1% | of neurons *BANC* calls dimorphic, how many did we also call dimorphic |
-| Jaccard overlap | 16.6% | low, but expected — see below |
+| recall (MaleCNS-dimorphic confirmed by BANC) | **87.2%** | of neurons *we* call dimorphic, how many does BANC also call dimorphic |
+| precision (BANC-dimorphic matches ours) | 16.5% | of neurons *BANC* calls dimorphic, how many did we also call dimorphic |
+| Jaccard overlap | 16.1% | low, but expected — see below |
 
-Recall is high: **BANC independently confirms 86% of the neurons MaleCNS
+Recall is high: **BANC independently confirms 87% of the neurons MaleCNS
 calls dimorphic.** Precision is low because BANC's own survey flags far
-more neurons as dimorphic overall (672 vs. 134 in this matched set) —
+more neurons as dimorphic overall (783 vs. 148 in this matched set) —
 a real asymmetry in classification sensitivity between two independent
 research groups' pipelines, not a problem with this analysis. The raw
 Jaccard number alone would misleadingly read as "poor agreement" — it's
@@ -60,9 +66,9 @@ confirm our calls," and it's high.
 
 | population | n matched | % confirmed dimorphic by BANC |
 |---|---|---|
-| residual (fru/dsx-unexplained) | 106 | 86.8% |
-| explained (fru/dsx-positive) | 28 | 82.1% |
-| **difference** | | **p = 0.547 (not significant)** |
+| residual (fru/dsx-unexplained) | 115 | 87.8% |
+| explained (fru/dsx-positive) | 33 | 84.8% |
+| **difference** | | **p = 0.768 (not significant)** |
 
 This is the result that matters: the residual set — the neurons Phase 0
 found are sex-different but not explained by fru/dsx — is confirmed
@@ -82,28 +88,27 @@ easy to conflate: `isomorphic` (assessed, judged not dimorphic) and
 `None` (never assessed — 70,121 of BANC's 188,508 neurons). The analysis
 counts both as "not confirmed", which would understate concordance if
 many matched neurons were simply unassessed. Checked directly: of the
-134 matched MaleCNS-dimorphic neurons, **115 are confirmed dimorphic, 18
+148 matched MaleCNS-dimorphic neurons, **129 are confirmed dimorphic, 18
 are genuine disagreements (BANC says isomorphic), and only 1 is
 unassessed.** Restricting to assessed-only neurons moves recall from
-85.8% to 86.5% — immaterial, so the headline number stands as reported.
+87.2% to 87.8% — immaterial, so the headline number stands as reported.
 
 Second: BANC ships a `proofread` flag, and unproofread reconstructions
-carry less reliable annotations. Of the 13,942 matched neurons 170 are
-unproofread, but **all 134 of the MaleCNS-dimorphic matches the finding
-rests on are `proofread=TRUE`** — so no reconstruction-quality caveat
-applies to the core result. Splitting residual vs. explained on
-assessed-only neurons leaves the conclusion unchanged (87.6% vs. 82.1%,
-still not significantly different).
+carry less reliable annotations. **All 148 of the MaleCNS-dimorphic
+matches the finding rests on are `proofread=TRUE`** — so no
+reconstruction-quality caveat applies to the core result. Splitting
+residual vs. explained on assessed-only neurons leaves the conclusion
+unchanged (still not significantly different).
 
 ## Per-superclass breakdown — directionally consistent, but underpowered
 
 | superclass | n residual matched | % confirmed | n explained matched | % confirmed | p |
 |---|---|---|---|---|---|
-| ascending_neuron | 23 | 87.0% | 10 | 100.0% | 0.536 |
-| cb_intrinsic | 9 | 100.0% | 10 | 80.0% | 0.474 |
+| ascending_neuron | 29 | 89.7% | 12 | 100.0% | 0.543 |
+| cb_intrinsic | 10 | 100.0% | 13 | 84.6% | 0.486 |
 | vnc_intrinsic | 9 | 11.1% | 2 | 0.0% | 1.0 |
 
-None reach significance (expected — n=9-33 per cell has essentially no
+None reach significance (expected — n=9-29 per cell has essentially no
 power), and none contradict the overall finding except `vnc_intrinsic`'s
 low absolute confirmation rate, which is itself built on only 11 total
 matches — too few to draw anything from. `ol_intrinsic` had fewer than 5
@@ -121,7 +126,7 @@ in an independently reconstructed, independently annotated female CNS.
 metric (cosine distance over connectivity profiles) or Phase 3's
 specific motif/cluster findings, since neither could be re-run against
 BANC without connectivity access. The `ascending_neuron` stratum's
-residual/explained BANC-concordance was checked here (87.0% vs 100.0%,
+residual/explained BANC-concordance was checked here (89.7% vs 100.0%,
 n too small to be meaningful) as the closest available proxy, not a
 direct test of Phase 3's clustering result.
 

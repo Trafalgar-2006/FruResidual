@@ -1,0 +1,108 @@
+# Biology vs. ascertainment bias: the independent-annotation cross-check
+
+Run: 2026-09-19, via `scripts/run_annotation_crosscheck.py`.
+
+This targets the project's central open question, flagged since Phase 1:
+is the fru/dsx-unexplained residual **real biology**, or an artifact of
+where MaleCNS's annotation effort was spent (~75% of it in the central
+brain)? One annotation source cannot tell those apart. The idea here was
+to re-check the residual against a second source — FlyWire's own
+`fru_dsx` column — on the reasoning that:
+
+- if residual neurons' FlyWire counterparts are often fru/dsx-**positive**,
+  MaleCNS simply missed them → **ascertainment bias**;
+- if they are negative in **both**, two annotations agree → **biology**.
+
+## The headline numbers look decisive. They are not.
+
+| population | n matched | FlyWire-positive |
+|---|---|---|
+| residual (MaleCNS fru/dsx−) | 576 | **0 (0.0%)** |
+| explained (MaleCNS fru/dsx+) | 189 | 148 (78.3%) |
+
+Restricted to super_classes where FlyWire demonstrably *does* annotate
+fru/dsx (≥1% coverage: central, descending, sensory, visual_projection),
+which controls the obvious "both datasets share the same blind spot"
+objection:
+
+| population | n | FlyWire-positive | expected if it behaved like explained |
+|---|---|---|---|
+| residual | 182 | **0 (0.0%)** | 146.0 |
+| explained | 177 | 142 (80.2%) | — |
+
+Fisher p = 6.7e-67. Within `central` alone — FlyWire's best-covered
+stratum at 7.71% — explained is 80.5% positive and residual is 0.0%
+(p=1.9e-42).
+
+Taken at face value that is overwhelming support for biology. **It
+should not be taken at face value.**
+
+## Why the test does not work: the second annotation is not independent
+
+`docs/project_plan.md` section (b.2) records that flywire_annotations'
+`fru_dsx` column was added "via cross-validation against MaleCNS". The
+data confirms it, and the giveaway is an asymmetry, not an overall
+agreement rate:
+
+| | count |
+|---|---|
+| MaleCNS+ / FlyWire+ | 148 |
+| MaleCNS+ / FlyWire− | 41 |
+| MaleCNS− / FlyWire+ | **0** |
+| MaleCNS− / FlyWire− | 576 |
+
+FlyWire calls fru/dsx on **zero** neurons that MaleCNS called negative.
+Its labels are a strict *subset* of MaleCNS's. So
+
+> P(FlyWire-positive | MaleCNS-negative) = 0 **by construction**
+
+and "the residual is 0% FlyWire-positive" is not a finding — it is a
+restatement of how the column was built. The p-value of 6.7e-67 is
+measuring the annotation's provenance, not biology. `run_annotation_crosscheck.py`
+detects this automatically (`flywire_labels_nested_within_malecns`) and
+returns **INCONCLUSIVE** rather than the biology verdict the raw
+statistics would otherwise support.
+
+The 41 MaleCNS+/FlyWire− cases show the column is not a *pure* copy —
+FlyWire does drop calls MaleCNS makes — so it carries some information
+of its own. But information flows one way only, which is exactly the
+direction that cannot help here.
+
+## What this rules in and out
+
+- **Ruled out:** this particular test as evidence either way. Reporting
+  the 0% vs 80% contrast as independent confirmation would have been a
+  serious overclaim, and it is the kind that survives peer review right
+  up until someone checks the annotation lineage.
+- **Not ruled out:** the biology hypothesis itself. Nothing here argues
+  *against* it. The best evidence for it remains Phase 3's: `cb_intrinsic`
+  sits in the well-annotated central brain — where "residual =
+  under-annotated" is least plausible — and its residual neurons show
+  connectivity differences surviving both regional stratification and
+  degree adjustment. That argument does not depend on a second
+  annotation at all.
+- **Still needed:** a genuinely independent fru/dsx source, one built
+  without reference to MaleCNS. Two candidates, neither yet obtained:
+  1. **FlyWire Codex's `gene` field** (`gene==Fruitless`, `gene==Doublesex`).
+     Per the plan (section b.5) these exist in Codex, and Codex's README
+     explicitly warns its annotations come from a *mix of sources* that
+     "likely diverge" from the curated table — for once that divergence
+     is the point. Requires a Codex export; not in the cached data.
+  2. **The Deutsch/Murthy-lab female fru/dsx catalogue**
+     (bioRxiv 2025.06.10.658788): 91 putative Fru/Dsx cell types, ~1,400
+     neurons, annotated from light-microscopy expression on the FlyWire
+     side. Independent by construction.
+
+  If either source calls fru/dsx on neurons MaleCNS called negative, the
+  `independence_diagnostic` will report `PARTIALLY INDEPENDENT` and the
+  test becomes informative. The machinery is already built and will run
+  unchanged against a different `fru_dsx` column.
+
+## Reproduce
+
+```
+python scripts/run_annotation_crosscheck.py
+```
+
+Outputs `annotation_crosscheck_summary.json` and
+`annotation_crosscheck_by_super_class.csv` to `data_processed/`.

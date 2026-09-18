@@ -16,11 +16,23 @@ def _toy_banc_df():
     )
 
 
-def test_match_banc_to_malecns_keeps_only_unambiguous_matches():
+def test_match_banc_to_malecns_strict_mode_keeps_only_unambiguous_matches():
     banc_df = _toy_banc_df()
-    matched = match_banc_to_malecns(banc_df, malecns_body_ids={100, 200, 300, 400})
+    matched = match_banc_to_malecns(
+        banc_df, malecns_body_ids={100, 200, 300, 400}, resolve_ambiguous=False
+    )
     # 100 (2x) and 300 (3x) are ambiguous -- excluded. 200 and 400 (1x each) kept.
     assert set(matched["bodyId"]) == {200, 400}
+
+
+def test_match_banc_to_malecns_default_recovers_unanimous_ambiguous_matches():
+    banc_df = _toy_banc_df()
+    matched = match_banc_to_malecns(banc_df, malecns_body_ids={100, 200, 300, 400})
+    # 100's two fragments both say "dimorphic" -> the ambiguity cannot
+    # change the answer, so it is recovered. 300's three fragments
+    # disagree -> still dropped.
+    assert set(matched["bodyId"]) == {100, 200, 400}
+    assert matched["bodyId"].duplicated().sum() == 0
 
 
 def test_match_banc_to_malecns_filters_to_given_population():
@@ -113,3 +125,32 @@ def test_compute_concordance_no_difference_gives_high_p_value():
     malecns_dimorphism = pd.Series(["sexually dimorphic"] * 40, index=body_ids)
     result = compute_concordance(matched, malecns_dimorphism, residual_ids)
     assert result["residual_vs_explained_p_value"] > 0.05
+
+
+def test_ambiguous_matches_recovered_only_when_fragments_agree():
+    """~19% of malecns_match links have several BANC fragments claiming
+    one MaleCNS neuron. Picking a winner arbitrarily is unjustifiable --
+    but when every fragment carries the SAME dimorphism call, the
+    ambiguity cannot change the answer, so discarding those is needless
+    data loss. Fragments that disagree must still be dropped.
+    """
+    banc = pd.DataFrame({
+        "malecns_match": [1, 2, 2, 3, 3, 4, 4],
+        "root_id": [10, 20, 21, 30, 31, 40, 41],
+        "cell_type": ["a", "b", "b", "c", "c", "d", "d"],
+        # id 2: fragments agree (dimorphic)   -> recoverable
+        # id 3: fragments DISAGREE            -> must be dropped
+        # id 4: fragments agree (isomorphic)  -> recoverable
+        "sexually_dimorphic": ["dimorphic", "dimorphic", "dimorphic",
+                               "dimorphic", "isomorphic", "isomorphic", "isomorphic"],
+        "proofread": ["TRUE"] * 7,
+    })
+    ids = {1, 2, 3, 4}
+
+    strict = match_banc_to_malecns(banc, ids, resolve_ambiguous=False)
+    assert set(strict["bodyId"]) == {1}
+
+    resolved = match_banc_to_malecns(banc, ids, resolve_ambiguous=True)
+    assert set(resolved["bodyId"]) == {1, 2, 4}, "must recover agreeing, drop disagreeing"
+    assert resolved["bodyId"].duplicated().sum() == 0, "one row per MaleCNS neuron"
+    assert resolved.loc[resolved["bodyId"] == 2, "sexually_dimorphic"].iat[0] == "dimorphic"
