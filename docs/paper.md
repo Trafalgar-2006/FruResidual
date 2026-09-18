@@ -25,8 +25,9 @@ periphery (70–76%), against a well-explained central brain (14–32%); (2)
 a gradient-boosting model predicts wiring difference from connectivity
 structure alone about as well as one that also sees *fru*/*dsx*
 (R²=0.507 vs. 0.499 — the genetic label adds nothing once structure is
-in the model), and a graph neural network using the real connectome
-subgraph does substantially better still (R²=0.735); (3) one stratum,
+in the model), while a graph neural network on the connectome subgraph
+is too seed-unstable on this population to beat that baseline reliably
+(R²=0.399 ± 0.478 over 10 seeds); (3) one stratum,
 ascending neurons, yields a non-confounded, resolution-robust
 connectivity-cluster signature concentrating 60.7% of its residual
 neurons in one cluster (odds ratio 2.68) plus 68 significant
@@ -167,20 +168,35 @@ connectivity structure rather than raw annotation density.
 
 | model | R² without fru/dsx | R² with fru/dsx | Δ |
 |---|---|---|---|
-| ridge | 0.327 ± 0.176 | 0.334 ± 0.172 | +0.007 |
-| gradient boosting | **0.507 ± 0.178** | 0.499 ± 0.182 | −0.008 |
-| GNN (population-internal subgraph) | **0.735** | — | — |
+| ridge (CV mean) | 0.327 ± 0.176 | 0.334 ± 0.172 | +0.007 |
+| gradient boosting (CV mean) | **0.507 ± 0.178** | 0.499 ± 0.182 | −0.008 |
+| GNN (10-seed mean, subgraph) | 0.399 ± 0.478 | — | — |
 
 Both ablation differences are well inside one cross-validation standard
 deviation — adding *fru*/*dsx* as a feature does not improve prediction
 once superclass, connectivity context, and neurotransmitter are already
 present. Read alongside 4.1–4.2, this is consistent with the residual
 being explained by regional/structural identity rather than requiring
-the genetic label at all. The GNN, seeing the real connectome subgraph
-among the 1,268 population neurons rather than only per-neuron features,
-clearly outperforms both baselines — a legitimate result per the plan's
-own pre-registered risk ("if the GNN doesn't beat gradient boosting,
-report that"; here it does).
+the genetic label at all. **This ablation — the actual Phase 2
+deliverable — rests entirely on the deterministic sklearn baselines and
+is unaffected by the GNN result below.**
+
+The GNN does **not** reliably beat those baselines. Swept over 10 seeds
+it gives R² = 0.399 ± 0.478, ranging from −0.762 to +0.882, and beats
+the gradient-boosting baseline on only 6 of 10 seeds — its mean sits
+below the baseline. With 1,268 nodes, 7,441 internal edges and a
+~190-node test split, there simply isn't enough data to train this GNN
+stably. The plan pre-registered exactly this outcome ("if the GNN
+doesn't beat gradient boosting, report that"), so it is reported.
+
+An earlier version of this writeup claimed R²=0.735 and "clearly beats
+both baselines." That was an artifact of two compounding errors, both
+since fixed: `train_gnn` seeded only its numpy data split and not
+PyTorch's weight init (so no run was reproducible — the same call
+returned 0.735, 0.702, 0.615 on successive reruns), and a single GNN
+split was being compared against already-cross-validated baselines. See
+`docs/phase2_results.md` for the full correction and the regression
+tests that now pin GNN determinism.
 
 ### 4.4 One clean circuit-level candidate (Phase 3)
 
@@ -249,6 +265,11 @@ Collected from each phase's own writeup, not softened:
   partner categories, not fine partner identity) and **brain-only**
   (FlyWire has no VNC), so any genuinely VNC-driven rewiring is
   structurally invisible to that phase specifically.
+- **The GNN result is not usable as evidence.** It is too seed-unstable
+  on this population (R² −0.762 to +0.882 across 10 seeds) to support
+  any claim about graph structure carrying signal beyond per-neuron
+  features. A defensible version would need k-fold cross-validation over
+  the graph and a larger population than this case-control design gives.
 - **Phase 3's `cb_intrinsic` and `vnc_intrinsic` results are
   degree-confounded** and not separable from that confound with the
   tools built here (would need degree-matched sampling or a covariate

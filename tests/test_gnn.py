@@ -49,6 +49,33 @@ def test_gnn_predictions_correlate_with_target():
     assert corr > 0.7
 
 
+def test_gnn_is_reproducible_across_runs():
+    """Regression test for a real reproducibility failure (2026-09-19):
+    random_state seeded only the numpy train/val/test split, while model
+    weight init drew from torch's unseeded global RNG. Two runs with the
+    same random_state therefore gave different R^2 -- the documented
+    Phase 2 GNN R^2 of 0.735 silently came back as 0.702 on a later
+    rerun, and nothing in the suite caught it.
+    """
+    features, targets, edges = _synthetic_population_graph(n=300)
+    data = build_graph(features, targets, edges)
+    first = train_gnn(data, epochs=50, hidden_channels=16, random_state=0)
+    second = train_gnn(data, epochs=50, hidden_channels=16, random_state=0)
+    assert first["test_r2"] == second["test_r2"]
+    np.testing.assert_array_equal(first["predictions"], second["predictions"])
+
+
+def test_gnn_different_seeds_give_different_results():
+    # Guards the opposite failure: seeding so aggressively that
+    # random_state stops mattering would make the test above pass
+    # vacuously.
+    features, targets, edges = _synthetic_population_graph(n=300)
+    data = build_graph(features, targets, edges)
+    a = train_gnn(data, epochs=50, hidden_channels=16, random_state=0)
+    b = train_gnn(data, epochs=50, hidden_channels=16, random_state=1)
+    assert a["test_r2"] != b["test_r2"]
+
+
 def test_gnn_stable_with_unscaled_large_magnitude_features():
     """Regression test for a real failure mode (2026-09-18): raw,
     unstandardized features (e.g. a connectivity-weight sum in the

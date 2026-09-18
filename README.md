@@ -24,8 +24,9 @@ Four independent lines of evidence, each gating the next:
 2. **Structure predicts it about as well as the genetic switch does**
    (Phase 2) — a gradient-boosting model gets R²=0.507 from connectivity
    structure alone; adding *fru*/*dsx* as a feature moves that to
-   R²=0.499, within noise. A GNN using the real connectome subgraph does
-   substantially better (R²=0.735).
+   R²=0.499, within noise. (A GNN on the connectome subgraph was tried
+   and is reported as a negative result: too seed-unstable on this
+   population to beat that baseline reliably.)
 3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
    yields a non-confounded, resolution-robust connectivity cluster
    concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 68
@@ -171,10 +172,14 @@ Full writeup: [docs/phase2_results.md](docs/phase2_results.md). Figures:
 634-case/634-control population (dimorphic vs. isomorphic, matched to
 FlyWire types), a gradient-boosting baseline predicts wiring difference
 reasonably well (R²=0.51) from structure alone — and adding fru/dsx as a
-feature adds nothing (R²=0.50, within noise). A GNN using the real
-connectome subgraph among these neurons does meaningfully better
-(R²=0.735), confirming graph structure carries real signal beyond
-per-neuron features. Per-neuron residual scores are saved for Phase 3,
+feature adds nothing (R²=0.50, within noise). The GNN on the real
+connectome subgraph is reported as a **negative** result: swept over 10
+seeds it gives R²=0.399 ± 0.478 (range -0.762 to +0.882) and beats the
+gradient-boosting baseline on only 6/10 seeds, so it does not reliably
+beat it — too little data (1,268 nodes) to train stably. An earlier
+version of this claimed R²=0.735; that came from an unseeded run and a
+single-split-vs-cross-validated comparison, both since fixed and
+regression-tested. Per-neuron residual scores are saved for Phase 3,
 plus an unplanned lead: several isomorphic-labeled neurons show
 surprisingly high actual wiring difference, worth a look alongside
 Phase 3's main analysis.

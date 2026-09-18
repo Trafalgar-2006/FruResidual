@@ -59,22 +59,50 @@ looks like a stronger predictor of wiring difference than the genetic
 switch itself, consistent with "some other factor, correlated with
 region, is doing real work here."
 
-## GNN beats the baselines
+## GNN does NOT reliably beat the baselines (corrected 2026-09-19)
 
 | model | test R² | test MAE |
 |---|---|---|
-| ridge (without fru/dsx) | 0.327 (CV mean) | 0.020 |
-| gradient_boosting (without fru/dsx) | 0.507 (CV mean) | 0.009 |
-| **GNN** (population-internal subgraph, 7,441 edges) | **0.735** | 0.010 |
+| ridge (without fru/dsx) | 0.327 ± 0.176 (CV mean) | 0.020 |
+| gradient_boosting (without fru/dsx) | **0.507 ± 0.178** (CV mean) | 0.009 |
+| GNN (population-internal subgraph, 7,441 edges) | **0.399 ± 0.478** (10-seed mean) | 0.009 |
 
-The GNN — a 2-layer GraphSAGE trained full-batch (population is only
-1,268 nodes, easily fits a 4GB GPU, no neighbor sampling needed) on the
-634 dimorphic + 634 isomorphic neurons and the real connectome edges
-*among* them — clearly beats both baselines. This makes sense: the
-baselines see only per-neuron features, while the GNN also sees who
-each neuron actually talks to within the population. Per the plan's own
-risk mitigation ("if the GNN doesn't beat gradient boosting, report
-that") — here it does, honestly, not by construction.
+**This section previously claimed the GNN "clearly beats both baselines"
+at R²=0.735. That was wrong, and the way it was wrong is worth
+recording.** Two compounding errors:
+
+1. **`train_gnn` was not actually seeded.** `random_state` seeded the
+   numpy train/val/test split but not PyTorch's global RNG, so model
+   weight init differed every run. The same call returned R²=0.735, then
+   0.702, then 0.615 on successive reruns. Found during a repo-wide
+   audit by diffing documented numbers against the regenerated
+   `phase2_summary.json`; fixed by seeding `torch.manual_seed` inside
+   `train_gnn`, with two regression tests (`test_gnn_is_reproducible_across_runs`
+   pins determinism, `test_gnn_different_seeds_give_different_results`
+   stops an over-aggressive seed fix from making the first test vacuous).
+2. **One GNN run was compared against cross-validated baselines** —
+   apples to oranges. The baselines were already reported as means over
+   CV folds; the GNN was a single 15% test split (~190 nodes).
+
+Reporting the GNN the same way the baselines are reported — swept over
+10 seeds (`GNN_SEEDS` in `scripts/run_phase2.py`) — gives R² = **0.399 ±
+0.478**, spanning **-0.762 to +0.882**. It beats the gradient-boosting
+baseline on **6 of 10 seeds**, and its mean is *below* that baseline.
+
+So the honest answer to the plan's pre-registered question ("if the GNN
+doesn't beat gradient boosting, report that") is: **it doesn't, not
+reliably.** On this population the GNN is far too seed-unstable to claim
+a win. The instability itself is the finding — with only 1,268 nodes,
+7,441 internal edges and a ~190-node test split, there isn't enough data
+to train a GNN stably here, and the single lucky run that produced 0.735
+should never have been reported as a result. A defensible GNN comparison
+would need k-fold cross-validation over the graph (not one split), and
+probably a larger population than this case-control design provides.
+
+This does **not** affect any other Phase 2 result: the ablation table,
+the wiring-difference target, and the per-neuron residual scores all
+come from the scale-invariant, deterministic sklearn baselines, not the
+GNN. Nothing downstream (Phase 3, Phase 4) consumed the GNN's output.
 
 One real bug caught and fixed before this result was trustworthy: the
 first GNN run diverged catastrophically (R² = -7250, MAE = 2.58, against

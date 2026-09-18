@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import numpy as np
 import pandas as pd
 
 from fruresidual.config import load_config
@@ -32,6 +33,9 @@ from fruresidual.viz.phase2 import (
 )
 
 RANDOM_STATE = 0
+# The GNN is reported over a seed sweep, not a single run -- see the
+# comment at the sweep itself for why.
+GNN_SEEDS = range(10)
 
 
 def main() -> None:
@@ -111,18 +115,39 @@ def main() -> None:
 
     graph_features = X_without.copy()  # keeps bodyId for build_graph's id_to_idx mapping
     data = build_graph(graph_features, y, edges)
-    gnn_result = train_gnn(data, epochs=200, random_state=RANDOM_STATE)
-    print(f"\nGNN test R^2: {gnn_result['test_r2']:.3f}, test MAE: {gnn_result['test_mae']:.3f}")
 
+    # Swept across seeds rather than reported from one run. A single GNN
+    # run is not comparable to the baselines above, which are already
+    # cross-validated means over folds -- and it turns out this GNN is
+    # wildly seed-sensitive (R^2 from -0.76 to +0.88 over these seeds),
+    # so any single number is close to meaningless. An earlier version of
+    # this script reported one unseeded run (R^2=0.735) as if it were the
+    # result; that number was a lucky draw, not a finding.
+    gnn_r2s, gnn_maes = [], []
+    for seed in GNN_SEEDS:
+        res = train_gnn(data, epochs=200, random_state=seed)
+        gnn_r2s.append(float(res["test_r2"]))
+        gnn_maes.append(float(res["test_mae"]))
+        print(f"  GNN seed {seed}: R^2={res['test_r2']:.3f}, MAE={res['test_mae']:.5f}")
+
+    gnn_r2_mean, gnn_r2_std = float(np.mean(gnn_r2s)), float(np.std(gnn_r2s))
     best_baseline_r2 = results_without["r2_mean"].max()
+    n_seeds_beating = int(np.sum(np.array(gnn_r2s) > best_baseline_r2))
+
     summary = {
         "n_population": len(population),
         "n_cases": int(population["is_case"].sum()),
         "n_controls": int((~population["is_case"]).sum()),
         "ablation_table": ablation_table.to_dict("records"),
-        "gnn_test_r2": float(gnn_result["test_r2"]),
-        "gnn_test_mae": float(gnn_result["test_mae"]),
-        "gnn_beats_best_baseline": bool(gnn_result["test_r2"] > best_baseline_r2),
+        "gnn_seeds": list(GNN_SEEDS),
+        "gnn_test_r2_per_seed": gnn_r2s,
+        "gnn_test_r2_mean": gnn_r2_mean,
+        "gnn_test_r2_std": gnn_r2_std,
+        "gnn_test_r2_min": float(np.min(gnn_r2s)),
+        "gnn_test_r2_max": float(np.max(gnn_r2s)),
+        "gnn_test_mae_mean": float(np.mean(gnn_maes)),
+        "gnn_n_seeds_beating_best_baseline": n_seeds_beating,
+        "gnn_beats_best_baseline_on_mean": bool(gnn_r2_mean > best_baseline_r2),
         "n_population_internal_edges": len(edges),
     }
     with open(cfg.data_processed / "phase2_summary.json", "w") as f:
@@ -130,8 +155,10 @@ def main() -> None:
 
     print(f"\n{'='*60}")
     print(f"Best baseline (without fru/dsx) R^2: {best_baseline_r2:.3f}")
-    print(f"GNN R^2: {gnn_result['test_r2']:.3f} "
-          f"({'beats' if summary['gnn_beats_best_baseline'] else 'does not beat'} best baseline)")
+    print(f"GNN R^2 over {len(GNN_SEEDS)} seeds: {gnn_r2_mean:.3f} +/- {gnn_r2_std:.3f} "
+          f"(min {min(gnn_r2s):.3f}, max {max(gnn_r2s):.3f})")
+    print(f"GNN beats best baseline on {n_seeds_beating}/{len(GNN_SEEDS)} seeds; "
+          f"on the mean: {'YES' if summary['gnn_beats_best_baseline_on_mean'] else 'NO'}")
     print(f"{'='*60}")
     print("Saved figures to", figures_dir)
     print("Saved summary to", cfg.data_processed / "phase2_summary.json")

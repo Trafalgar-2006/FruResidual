@@ -98,6 +98,14 @@ def train_gnn(
     residuals can be computed for the full population, matching the
     baselines' out-of-fold predictions).
     """
+    # random_state must seed BOTH sources of randomness here. The numpy
+    # rng below only controls the train/val/test split; model weight init
+    # draws from torch's global RNG, so without this line two runs with
+    # the same random_state start from different weights and return
+    # different R^2 -- which is exactly what happened: a documented
+    # GNN R^2 of 0.735 came back as 0.702 on a later rerun (2026-09-19).
+    torch.manual_seed(random_state)
+
     n = data.num_nodes
     rng = np.random.default_rng(random_state)
     perm = rng.permutation(n)
