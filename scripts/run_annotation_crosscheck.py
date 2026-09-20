@@ -37,7 +37,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 
 from fruresidual.config import load_config
-from fruresidual.data.flywire_client import load_codex_annotations, load_flywire_annotations
+from fruresidual.data.flywire_client import (
+    load_codex_annotations,
+    load_codex_gene_matches,
+    load_flywire_annotations,
+)
 from fruresidual.features.annotation_crosscheck import (
     build_flywire_type_lookup,
     crosscheck_residual,
@@ -56,20 +60,51 @@ from fruresidual.features.fru_dsx_join import (
 MIN_FLYWIRE_COVERAGE_PCT = 1.0
 
 
+_CODEX_HELP = """
+Two ways to produce it, either works:
+
+  (A) SEARCH EXPORT -- usually easiest
+      codex.flywire.ai, make sure the dataset selector (top right) says
+      FAFB v783, then search:   gene == Fruitless
+      Download the result list, repeat for   gene == Doublesex   and
+      concatenate, or search   gene == Fruitless || gene == Doublesex
+      The file only needs a root_id (or cell_type) column -- it is the
+      list of POSITIVES; the full population comes from the cached
+      curated table.
+
+  (B) FULL DUMP
+      codex.flywire.ai -> Download Data -> the annotation/cell-info
+      export that carries a `gene` column for every neuron.
+
+Save either as {path} (.csv/.csv.gz/.tsv/.feather all fine). The loader
+detects which of the two it got. Column names are auto-detected.
+
+This is the one source that can settle the biology-vs-ascertainment
+question -- see docs/annotation_crosscheck_results.md.
+"""
+
+
 def _load_source(cfg, source: str, codex_file: str) -> tuple[pd.DataFrame, str]:
     if source == "curated":
         return load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather"), "flywire_curated"
+
     path = cfg.data_raw / codex_file
     if not path.exists():
-        raise SystemExit(
-            f"Codex export not found at {path}.\n\n"
-            "Get it from codex.flywire.ai -> Info -> Download Data, choose the\n"
-            "annotation/cell-info export that includes the `gene` column, and save it\n"
-            f"as {path}. Any of .csv/.csv.gz/.tsv/.feather works; column names are\n"
-            "auto-detected. This is the one source that can actually settle the\n"
-            "biology-vs-ascertainment question -- see docs/annotation_crosscheck_results.md."
-        )
-    return load_codex_annotations(path), f"codex[{codex_file}]"
+        raise SystemExit(f"Codex export not found at {path}.\n" + _CODEX_HELP.format(path=path))
+
+    # A full dump carries a gene column for every neuron; a search export
+    # is just the positives and has to be joined onto the population.
+    # Try the full-dump reader first and fall back rather than making the
+    # user declare which kind of file they downloaded.
+    try:
+        fw = load_codex_annotations(path)
+        return fw, f"codex_full_dump[{codex_file}]"
+    except ValueError:
+        curated = load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather")
+        fw = load_codex_gene_matches(path, curated)
+        label = (f"codex_search_export[{codex_file}, matched_on={fw.attrs['matched_on']}, "
+                 f"{fw.attrs['n_matched']}/{fw.attrs['n_in_export']} matched]")
+        return fw, label
 
 
 def main() -> None:

@@ -98,6 +98,88 @@ def load_codex_annotations(path: Path) -> pd.DataFrame:
     return out[out["cell_type"].notna()].reset_index(drop=True)
 
 
+_ROOT_ID_CANDIDATES = ["root_id", "root id", "rootid", "id", "cell_id", "segment_id"]
+
+
+def load_codex_gene_matches(
+    path: Path, flywire_annotations: pd.DataFrame
+) -> pd.DataFrame:
+    """Second, usually easier ingestion route for Codex.
+
+    Instead of a full annotation dump carrying a `gene` column, this
+    takes a Codex SEARCH export -- the result list of `gene == Fruitless`
+    (and/or `gene == Doublesex`) -- which is just the set of neurons
+    Codex calls fru/dsx-positive, and joins it onto the full FlyWire
+    population we already have cached.
+
+    That combination is what the cross-check needs: the positives come
+    from Codex (the independent source), while `super_class` and
+    `cell_type` for the WHOLE population come from the curated table.
+    Using the curated table for those two fields is safe -- they are
+    structural annotations, not fru/dsx calls, so they cannot leak the
+    variable under test.
+
+    Matching is by root_id when the export has one, falling back to
+    cell_type. Root_ids are 64-bit and read as strings throughout to
+    avoid float64 precision loss, which silently corrupts the last
+    digits of a FlyWire segment id.
+    """
+    if path.suffix == ".feather":
+        raw = pd.read_feather(path)
+    else:
+        sep = "\t" if path.suffix in {".tsv", ".tab"} else ","
+        raw = pd.read_csv(path, sep=sep, low_memory=False, dtype=str)
+
+    lowered = {str(c).strip().lower(): c for c in raw.columns}
+    root_col = next((lowered[c] for c in _ROOT_ID_CANDIDATES if c in lowered), None)
+    type_col = next(
+        (lowered[c] for c in _CODEX_COLUMN_CANDIDATES["cell_type"] if c in lowered), None
+    )
+    if root_col is None and type_col is None:
+        raise ValueError(
+            f"{path.name} has neither a root_id nor a cell_type column, so its rows "
+            f"cannot be matched to the FlyWire population. Columns present: "
+            f"{sorted(raw.columns)}"
+        )
+
+    fw = flywire_annotations.copy()
+    fw["root_id"] = fw["root_id"].astype("string").str.strip()
+
+    if root_col is not None:
+        positive_roots = set(raw[root_col].astype("string").str.strip().dropna())
+        is_positive = fw["root_id"].isin(positive_roots)
+        matched_on = "root_id"
+        n_in_export = len(positive_roots)
+    else:
+        positive_types = set(raw[type_col].astype("string").str.strip().dropna())
+        is_positive = fw["cell_type"].astype("string").str.strip().isin(positive_types)
+        matched_on = "cell_type"
+        n_in_export = len(positive_types)
+
+    n_hit = int(is_positive.sum())
+    if n_hit == 0:
+        raise ValueError(
+            f"None of the {n_in_export} entries in {path.name} matched the FlyWire "
+            f"population on {matched_on}. The export is probably from a different "
+            "dataset (Codex hosts MCNS, BANC and MANC too) -- this cross-check needs "
+            "the FAFB v783 dataset, which is the female brain the rest of the "
+            "project compares against."
+        )
+
+    out = pd.DataFrame({
+        "cell_type": fw["cell_type"],
+        "super_class": fw["super_class"],
+        # crosscheck treats notna() as positive
+        "fru_dsx": pd.Series(["codex_gene"] * len(fw), dtype="string").where(
+            is_positive.to_numpy(), other=pd.NA
+        ),
+    })
+    out.attrs["matched_on"] = matched_on
+    out.attrs["n_in_export"] = n_in_export
+    out.attrs["n_matched"] = n_hit
+    return out[out["cell_type"].notna()].reset_index(drop=True)
+
+
 def fetch_flywire_type_profiles(
     flywire_annotations: pd.DataFrame,
     flywire_types: list[str],

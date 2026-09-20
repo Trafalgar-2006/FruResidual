@@ -115,19 +115,47 @@ The ingestion path is built and tested (`load_codex_annotations`,
 `tests/test_codex_loader.py`); the only missing piece is the export
 itself, which needs a browser login and so cannot be fetched from here.
 
-1. Go to **codex.flywire.ai** → **Info** → **Download Data**.
-2. Take the annotation / cell-info export that includes the **`gene`**
-   column (the field holding `Fruitless` / `Doublesex` calls).
-3. Save it as `C:/FruResidualData/raw/codex_annotations.csv`.
-   `.csv`, `.csv.gz`, `.tsv` and `.feather` all work.
-4. Run `python scripts/run_annotation_crosscheck.py --source codex`.
+**Before anything else: check the dataset selector.** Codex hosts five
+datasets (FAFB, BANC, MANC, MAOL, **MCNS**). The selector is top-right
+and must read **FAFB v783** — the female brain the rest of this project
+compares against. Exporting MCNS by mistake would be comparing MaleCNS
+against itself; the loader catches it (`test_export_from_the_wrong_dataset_fails_with_a_useful_message`)
+but it is the easiest way to waste the trip.
 
-Column names are auto-detected (`cell_type`/`type`,
-`super_class`/`superclass`/`class`, `gene`/`genes`/`markers`) because
-Codex has renamed export headers between releases. If none match, the
-loader raises with the list of columns actually present rather than
-failing deep inside a groupby — so a format surprise costs a minute, not
-an afternoon.
+### Route A — search export (usually easiest)
+
+1. On **codex.flywire.ai** with **FAFB v783** selected, search
+   `gene == Fruitless`.
+2. Download the result list. Repeat for `gene == Doublesex` and
+   concatenate, or try `gene == Fruitless || gene == Doublesex` in one
+   query.
+3. Save as `C:/FruResidualData/raw/codex_annotations.csv`.
+
+The file only needs a `root_id` (or `cell_type`) column — it is just the
+list of **positives**. The full population, and the `super_class` /
+`cell_type` fields, come from the curated table already cached. That is
+safe: those are structural annotations, not fru/dsx calls, so they
+cannot leak the variable under test.
+
+### Route B — full dump
+
+**Download Data** → the annotation/cell-info export carrying a `gene`
+column for every neuron. Same destination path.
+
+### Then
+
+```
+python scripts/run_annotation_crosscheck.py --source codex
+```
+
+The loader works out which of the two kinds of file it got, so there is
+nothing to declare. Column names are auto-detected (`cell_type`/`type`,
+`super_class`/`superclass`/`class`, `gene`/`genes`/`markers`,
+`root_id`/`id`/`segment_id`) because Codex has renamed export headers
+between releases. If nothing matches, it raises with the columns
+actually present rather than failing deep inside a groupby. Root ids are
+read as strings throughout — parsed as float64 a 64-bit FlyWire id loses
+its last digits and would silently match nothing.
 
 **The result to look at first is not the p-value.** It is
 `independence_diagnostic.independence_verdict` in the summary JSON:

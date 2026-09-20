@@ -97,3 +97,66 @@ def test_output_feeds_the_crosscheck_unchanged(tmp_path):
     assert bool(lookup.loc["T2", "fw_fru_dsx_any"]) is False
     cov = flywire_coverage_by_super_class(out)
     assert cov.loc["central", "pct_positive"] == 50.0
+
+
+def _curated():
+    """Stand-in for the cached curated FlyWire table: supplies the full
+    population plus structural fields (super_class, cell_type). Those are
+    safe to reuse because they are not fru/dsx calls, so they cannot leak
+    the variable under test."""
+    return pd.DataFrame({
+        "root_id": ["720575940600000001", "720575940600000002",
+                    "720575940600000003", "720575940600000004"],
+        "cell_type": ["T1", "T2", "T3", "T4"],
+        "super_class": ["central", "central", "optic", "optic"],
+        "fru_dsx": [None, None, None, None],
+    })
+
+
+def test_search_export_matches_on_root_id(tmp_path):
+    from fruresidual.data.flywire_client import load_codex_gene_matches
+
+    # a Codex "gene == Fruitless" result list: just the positives
+    p = _write(tmp_path, [("720575940600000001",), ("720575940600000003",)], ["root_id"])
+    out = load_codex_gene_matches(p, _curated())
+
+    assert out.attrs["matched_on"] == "root_id"
+    pos = set(out.loc[out["fru_dsx"].notna(), "cell_type"])
+    assert pos == {"T1", "T3"}
+    # the full population is retained, not just the positives -- the
+    # coverage denominator depends on it
+    assert len(out) == 4
+
+
+def test_search_export_falls_back_to_cell_type(tmp_path):
+    from fruresidual.data.flywire_client import load_codex_gene_matches
+
+    p = _write(tmp_path, [("T2",), ("T4",)], ["cell_type"])
+    out = load_codex_gene_matches(p, _curated())
+    assert out.attrs["matched_on"] == "cell_type"
+    assert set(out.loc[out["fru_dsx"].notna(), "cell_type"]) == {"T2", "T4"}
+
+
+def test_root_ids_are_not_corrupted_by_float_precision(tmp_path):
+    """FlyWire root_ids are 64-bit. Read as float64 they lose their last
+    digits and silently match nothing, so the whole export would look
+    empty rather than erroring."""
+    from fruresidual.data.flywire_client import load_codex_gene_matches
+
+    p = _write(tmp_path, [("720575940600000001",)], ["root_id"])
+    out = load_codex_gene_matches(p, _curated())
+    assert out.attrs["n_matched"] == 1
+
+
+def test_export_from_the_wrong_dataset_fails_with_a_useful_message(tmp_path):
+    """Codex hosts MCNS, BANC and MANC alongside FAFB. Downloading the
+    wrong one is an easy mistake and would otherwise show up as a
+    mysterious 0% rather than as an error."""
+    from fruresidual.data.flywire_client import load_codex_gene_matches
+
+    p = _write(tmp_path, [("999999999999999999",), ("888888888888888888",)], ["root_id"])
+    with pytest.raises(ValueError) as exc:
+        load_codex_gene_matches(p, _curated())
+    msg = str(exc.value)
+    assert "different dataset" in msg
+    assert "FAFB v783" in msg
