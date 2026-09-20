@@ -43,7 +43,13 @@ def plot_roi_bar(roi_summary: pd.DataFrame, out_path: Path, top_n: int = 20) -> 
     ax.barh(df.index, df["pct_residual"], color=_SIG_COLOR)
     ax.set_xlabel("% of dimorphic-neuron synapse weight that is fru/dsx-unexplained")
     ax.set_xlim(0, 100)
-    ax.set_title(f"Unexplained-dimorphism residual by neuropil (top {top_n} by total involvement)")
+    # Wrapped and down-sized: at figsize=7 wide this title overflows the
+    # axes and gets clipped mid-word, which is then baked into the
+    # summary panel that embeds this figure.
+    ax.set_title(
+        f"Unexplained-dimorphism residual by neuropil\n(top {top_n} by total involvement)",
+        fontsize=10,
+    )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150)

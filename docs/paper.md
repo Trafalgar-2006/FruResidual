@@ -90,9 +90,11 @@ section (b); per-phase access details and caveats are in
 ## 3. Methods overview
 
 The pipeline is four phases, each gated by the previous one's result
-(`scripts/run_phase0.py` → `run_phase4.py`; `configs/config.yaml`
-controls the one genuine analysis parameter, the *fru*/*dsx*
-confidence-aggregation rule). Full statistical detail is in
+(`scripts/run_phase0.py` → `run_phase4.py`), plus a standalone
+annotation cross-check (`run_annotation_crosscheck.py`) that tests all
+of them against a second, independent *fru*/*dsx* source.
+`configs/config.yaml` controls the one genuine analysis parameter, the
+*fru*/*dsx* confidence-aggregation rule. Full statistical detail is in
 `docs/phaseN_results.md`; this section is the minimum needed to read
 Section 4.
 
@@ -127,6 +129,17 @@ Section 4.
   split, via recall, precision, and a Fisher's exact test on whether
   residual neurons are confirmed dimorphic at a different rate than
   explained neurons.
+- **Annotation cross-check (§4.6).** The residual re-tested against a
+  second *fru*/*dsx* annotation, with an explicit
+  `independence_diagnostic` that refuses the comparison if the second
+  source's labels turn out to be nested inside MaleCNS's — which is what
+  happened on the first attempt, and is why the result reported is the
+  second one.
+- **Empirical nulls.** Phase 3's cluster result additionally carries a
+  1,000-iteration label-permutation null (`label_permutation_null`),
+  holding the graph and its clustering fixed, because the parametric
+  p-value assumes an independence between clusters and labels that does
+  not hold here.
 
 ## 4. Results
 
@@ -452,6 +465,8 @@ python scripts/run_phase1.py
 python scripts/run_phase2_data.py && python scripts/run_phase2.py
 python scripts/run_phase3_data.py && python scripts/run_phase3.py
 python scripts/run_phase4.py
+python scripts/run_annotation_crosscheck.py                       # curated source (inconclusive by design)
+python scripts/run_annotation_crosscheck.py --source codex        --codex-file codex_labels.csv.gz                           # the §4.6 result
 python scripts/make_summary_figure.py
 python -m pytest && ruff check .
 ```

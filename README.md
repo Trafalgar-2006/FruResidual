@@ -12,6 +12,11 @@ README covers setup and reproduction; the plan behind the project is in
 
 ![Headline figure](reports/figures/summary_headline.png)
 
+*The figure shows the four data-driven phases. The fifth line of
+evidence below — the independent-annotation cross-check — has no figure
+of its own; it lives in
+[docs/annotation_crosscheck_results.md](docs/annotation_crosscheck_results.md).*
+
 ## Headline result
 
 Five independent lines of evidence, each gating the next:
@@ -55,7 +60,7 @@ data/                raw/ interim/ processed/ — gitignored, fetched via script
 docs/                paper.md (start here), project_plan.md, phaseN_results.md
 notebooks/           scratch space only — the real entry points are scripts/
 reports/figures/     small PNG deliverables per phase — tracked in git, unlike data/
-scripts/             run_phaseN.py, download_*.py, make_summary_figure.py
+scripts/             run_phaseN.py, download_*.py, run_annotation_crosscheck.py, …
 src/fruresidual/     the actual package — data clients, features, models, eval, viz
 tests/               pytest
 ```
@@ -135,9 +140,23 @@ aren't throttled). Get it with:
 ```
 python scripts/download_male_cns.py   # MaleCNS bulk files, no auth needed
 ```
-The FlyWire `flywire_annotations` table is fetched on first use by
-`fruresidual.data.flywire_client.load_flywire_annotations` (also cached
-into the same directory).
+That fetches the MaleCNS bulk files the pipeline needs:
+`body-annotations-male-cns-v1.0-minconf-0.5.feather` (per-neuron
+`dimorphism` and `fruDsx`) and `body-neurotransmitters-male-cns-v1.0.feather`.
+
+Fetched automatically on first use, into the same directory:
+
+- `flywire_annotations.feather` — by `flywire_client.load_flywire_annotations`
+- `banc_888_meta.feather` — by `banc_client.load_banc_meta` (Phase 4)
+
+**Fetched manually** (needs a browser login, so no script can do it):
+
+- `codex_labels.csv.gz` — FlyWire Codex → Download Data → Community
+  Labels (Raw), with the dataset selector on **FAFB v783**. Required
+  only for `run_annotation_crosscheck.py --source codex`. If you
+  download other Codex exports and aren't sure which carries the
+  fru/dsx annotations, `python scripts/inspect_codex_download.py` scans
+  them and tells you which file and column, ranked.
 
 ## Phase-by-phase reproduction log
 

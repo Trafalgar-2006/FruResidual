@@ -1,14 +1,16 @@
 # Outreach drafts
 
 Two blockers in this project can only be cleared by someone outside it.
-Both drafts below are ready to send; fill in the bracketed bits.
+**Both have now been sent** — the drafts are kept below as the record of
+what was actually asked, so the replies can be read against them.
 
 Status:
 - **Janelia (E6): SENT 2026-09-19** to Dr. Stuart Berg (corresponding
   author, Berg et al. *Cell* 2026), from d.mohithakshay@gmail.com.
   Awaiting reply.
-- **BANC (E7): not sent.** Account details below are filled in and
-  verified against the live CAVE auth server — nothing left to look up.
+- **BANC (E7): SENT 2026-09-20** to Wei-Chung Allen Lee (Lee Lab,
+  Harvard), from d.mohithakshay@gmail.com, including CAVE user ID REDACTED
+  so the grant can be applied directly. Awaiting reply.
 
 Looking up your own CAVE identity again, if ever needed:
 `GET https://global.daf-apis.com/auth/api/v1/user/me` with
