@@ -101,8 +101,46 @@ direction that cannot help here.
 ## Reproduce
 
 ```
-python scripts/run_annotation_crosscheck.py
+python scripts/run_annotation_crosscheck.py                  # curated table (the run above)
+python scripts/run_annotation_crosscheck.py --source codex   # once the Codex export exists
 ```
 
-Outputs `annotation_crosscheck_summary.json` and
-`annotation_crosscheck_by_super_class.csv` to `data_processed/`.
+Outputs go to `data_processed/`, suffixed per source so the two runs
+cannot overwrite each other: `annotation_crosscheck_summary.json` and
+`..._summary_codex.json` (plus the matching `_by_super_class.csv`).
+
+## Running it against Codex — the step that would settle this
+
+The ingestion path is built and tested (`load_codex_annotations`,
+`tests/test_codex_loader.py`); the only missing piece is the export
+itself, which needs a browser login and so cannot be fetched from here.
+
+1. Go to **codex.flywire.ai** → **Info** → **Download Data**.
+2. Take the annotation / cell-info export that includes the **`gene`**
+   column (the field holding `Fruitless` / `Doublesex` calls).
+3. Save it as `C:/FruResidualData/raw/codex_annotations.csv`.
+   `.csv`, `.csv.gz`, `.tsv` and `.feather` all work.
+4. Run `python scripts/run_annotation_crosscheck.py --source codex`.
+
+Column names are auto-detected (`cell_type`/`type`,
+`super_class`/`superclass`/`class`, `gene`/`genes`/`markers`) because
+Codex has renamed export headers between releases. If none match, the
+loader raises with the list of columns actually present rather than
+failing deep inside a groupby — so a format surprise costs a minute, not
+an afternoon.
+
+**The result to look at first is not the p-value.** It is
+`independence_diagnostic.independence_verdict` in the summary JSON:
+
+- `PARTIALLY INDEPENDENT` → Codex calls fru/dsx on at least some neurons
+  MaleCNS called negative, so the source carries information of its own
+  and the residual comparison below it becomes meaningful. **This is the
+  outcome that settles the question**, in whichever direction the
+  numbers then point.
+- `NOT INDEPENDENT (nested)` → Codex's labels are also a subset of
+  MaleCNS's, the same dead end as the curated table, and the remaining
+  independent option is the Deutsch/Murthy-lab catalogue
+  (bioRxiv 2025.06.10.658788).
+
+Either way the run is informative: one settles the project's central
+question, the other rules out the second of three candidate sources.

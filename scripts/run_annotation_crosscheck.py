@@ -8,11 +8,26 @@ MaleCNS's annotation effort was spent? See
 fruresidual.features.annotation_crosscheck for the logic and the two
 confounds it controls.
 
-Usage:  python scripts/run_annotation_crosscheck.py
+Two annotation sources are supported:
+
+  --source curated  (default) the `fru_dsx` column of the curated
+      flywire_annotations table. Already run: it turns out to be NESTED
+      inside MaleCNS's annotation (it never fires where MaleCNS didn't),
+      so it cannot answer the question. Kept because demonstrating that
+      is itself the result.
+
+  --source codex    FlyWire Codex's `gene` field, exported via Codex ->
+      Info -> Download Data and saved into data_raw. Different
+      annotation lineage, so this one CAN answer the question -- if its
+      independence_diagnostic comes back PARTIALLY INDEPENDENT.
+
+Usage:  python scripts/run_annotation_crosscheck.py [--source curated|codex]
+                                                    [--codex-file NAME]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -22,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 
 from fruresidual.config import load_config
-from fruresidual.data.flywire_client import load_flywire_annotations
+from fruresidual.data.flywire_client import load_codex_annotations, load_flywire_annotations
 from fruresidual.features.annotation_crosscheck import (
     build_flywire_type_lookup,
     crosscheck_residual,
@@ -41,7 +56,28 @@ from fruresidual.features.fru_dsx_join import (
 MIN_FLYWIRE_COVERAGE_PCT = 1.0
 
 
+def _load_source(cfg, source: str, codex_file: str) -> tuple[pd.DataFrame, str]:
+    if source == "curated":
+        return load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather"), "flywire_curated"
+    path = cfg.data_raw / codex_file
+    if not path.exists():
+        raise SystemExit(
+            f"Codex export not found at {path}.\n\n"
+            "Get it from codex.flywire.ai -> Info -> Download Data, choose the\n"
+            "annotation/cell-info export that includes the `gene` column, and save it\n"
+            f"as {path}. Any of .csv/.csv.gz/.tsv/.feather works; column names are\n"
+            "auto-detected. This is the one source that can actually settle the\n"
+            "biology-vs-ascertainment question -- see docs/annotation_crosscheck_results.md."
+        )
+    return load_codex_annotations(path), f"codex[{codex_file}]"
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", choices=["curated", "codex"], default="curated")
+    parser.add_argument("--codex-file", default="codex_annotations.csv")
+    args = parser.parse_args()
+
     cfg = load_config()
     rule = cfg.fru_dsx_aggregation
     cfg.data_processed.mkdir(parents=True, exist_ok=True)
@@ -53,7 +89,9 @@ def main() -> None:
           f"residual: {int((~dimorphic['has_fru_dsx']).sum())}, "
           f"explained: {int(dimorphic['has_fru_dsx'].sum())}")
 
-    fw = load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather")
+    fw, source_label = _load_source(cfg, args.source, args.codex_file)
+    print(f"\nannotation source: {source_label}  ({len(fw)} rows, "
+          f"{int(fw['fru_dsx'].notna().sum())} fru/dsx-positive)")
     coverage = flywire_coverage_by_super_class(fw)
     print("\n=== FlyWire's OWN fru/dsx coverage by super_class ===")
     print("(a stratum with near-zero coverage cannot inform this test)")
@@ -131,6 +169,7 @@ def main() -> None:
     print(f"\n  VERDICT: {verdict}")
 
     summary = {
+        "annotation_source": source_label,
         "rule": rule,
         "n_dimorphic": len(dimorphic),
         "n_matched_to_flywire": len(matched),
@@ -142,10 +181,13 @@ def main() -> None:
         "by_flywire_super_class": result["by_flywire_super_class"],
         "verdict": verdict,
     }
-    out = cfg.data_processed / "annotation_crosscheck_summary.json"
+    # Suffixed per source so a codex run cannot silently overwrite the
+    # curated run's output (or vice versa) -- they are different evidence.
+    suffix = "" if args.source == "curated" else f"_{args.source}"
+    out = cfg.data_processed / f"annotation_crosscheck_summary{suffix}.json"
     with open(out, "w") as f:
         json.dump(summary, f, indent=2, default=str)
-    strat.to_csv(cfg.data_processed / "annotation_crosscheck_by_super_class.csv", index=False)
+    strat.to_csv(cfg.data_processed / f"annotation_crosscheck_by_super_class{suffix}.csv", index=False)
     print(f"\nSaved summary to {out}")
 
 

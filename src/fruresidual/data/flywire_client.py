@@ -28,6 +28,76 @@ def load_flywire_annotations(cache_path: Path) -> pd.DataFrame:
     return pd.read_feather(cache_path)
 
 
+CODEX_FRU_DSX_GENES = frozenset({"fruitless", "doublesex", "fru", "dsx"})
+
+# Codex's export headers are not pinned by any public schema doc and have
+# changed between releases, so each field is matched against candidates
+# (case-insensitive) rather than assumed.
+_CODEX_COLUMN_CANDIDATES = {
+    "cell_type": ["cell_type", "type", "cell type", "primary_type"],
+    "super_class": ["super_class", "superclass", "super class", "class"],
+    "gene": ["gene", "genes", "gene_expression", "marker", "markers"],
+}
+
+
+def load_codex_annotations(path: Path) -> pd.DataFrame:
+    """Loads a Codex 'Download Data' export and normalizes it into the
+    shape fruresidual.features.annotation_crosscheck expects:
+    (cell_type, super_class, fru_dsx).
+
+    Why this exists: the `fru_dsx` column in the curated
+    flywire_annotations table was derived with reference to MaleCNS --
+    verified empirically, it never marks a neuron positive where MaleCNS
+    marked it negative, so it cannot adjudicate whether the residual is
+    biology or MaleCNS annotation coverage (see
+    docs/annotation_crosscheck_results.md). Codex's `gene` field comes
+    from a different annotation lineage; its README explicitly warns its
+    labels "likely diverge" from the curated table, which for this one
+    purpose is exactly what is wanted.
+
+    Accepts .csv/.csv.gz/.tsv/.feather. Column names are auto-detected
+    because Codex's export headers are not stable across releases; if a
+    required field cannot be found the error lists the columns that ARE
+    present rather than failing on a KeyError deep in a groupby.
+    """
+    if path.suffix == ".feather":
+        raw = pd.read_feather(path)
+    else:
+        sep = "\t" if path.suffix in {".tsv", ".tab"} else ","
+        raw = pd.read_csv(path, sep=sep, low_memory=False)
+
+    lowered = {str(c).strip().lower(): c for c in raw.columns}
+    resolved: dict[str, str] = {}
+    for field, candidates in _CODEX_COLUMN_CANDIDATES.items():
+        for cand in candidates:
+            if cand in lowered:
+                resolved[field] = lowered[cand]
+                break
+        if field not in resolved:
+            raise ValueError(
+                f"Could not find a '{field}' column in {path.name}. Tried {candidates}. "
+                f"Columns present: {sorted(raw.columns)}. "
+                "If Codex renamed it, add the new name to _CODEX_COLUMN_CANDIDATES."
+            )
+
+    gene = raw[resolved["gene"]].astype("string").str.strip().str.lower()
+    # A neuron's gene field can list several markers; positive if ANY of
+    # them is fru/dsx. Same "any" logic the type-level rollup uses, and
+    # for the same reason: it biases toward finding fru/dsx on the
+    # residual, i.e. against this analysis's own hypothesis.
+    is_fru_dsx = gene.fillna("").apply(
+        lambda g: any(tok.strip() in CODEX_FRU_DSX_GENES for tok in g.replace(";", ",").split(","))
+    )
+
+    out = pd.DataFrame({
+        "cell_type": raw[resolved["cell_type"]],
+        "super_class": raw[resolved["super_class"]],
+        # crosscheck treats notna() as positive, so encode negatives as NA
+        "fru_dsx": gene.where(is_fru_dsx, other=pd.NA),
+    })
+    return out[out["cell_type"].notna()].reset_index(drop=True)
+
+
 def fetch_flywire_type_profiles(
     flywire_annotations: pd.DataFrame,
     flywire_types: list[str],
