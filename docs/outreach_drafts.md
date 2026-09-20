@@ -3,7 +3,18 @@
 Two blockers in this project can only be cleared by someone outside it.
 Both drafts below are ready to send; fill in the bracketed bits.
 
-Status: **not sent** — update this line when you send them.
+Status:
+- **Janelia (E6): SENT 2026-09-19** to Dr. Stuart Berg (corresponding
+  author, Berg et al. *Cell* 2026), from d.mohithakshay@gmail.com.
+  Awaiting reply.
+- **BANC (E7): not sent.** Account details below are filled in and
+  verified against the live CAVE auth server — nothing left to look up.
+
+Looking up your own CAVE identity again, if ever needed:
+`GET https://global.daf-apis.com/auth/api/v1/user/me` with
+`Authorization: Bearer <token>`. Returns id / name / email. Never paste
+the token itself into an email — the account email and user ID are all
+anyone needs to grant access.
 
 ---
 
@@ -89,7 +100,9 @@ rather than emailing.
 > I'd like to request `view` permission for the BANC datastack for my
 > CAVE account.
 >
-> **Account:** [the email your CAVE account is registered under]
+> **Account email:** d.mohithakshay@gmail.com
+> **CAVE user ID:** REDACTED (account name: Mohith Akshay Duggirala,
+> created 2026-09-17)
 > **Current status:** my token authenticates against the BANC datastack
 > but returns `403: Missing permission: view for dataset BANC`. The same
 > token works for FlyWire, so I believe this is purely the per-dataset
