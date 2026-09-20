@@ -39,6 +39,7 @@ import pandas as pd
 from fruresidual.config import load_config
 from fruresidual.data.flywire_client import (
     load_codex_annotations,
+    load_codex_community_labels,
     load_codex_gene_matches,
     load_flywire_annotations,
 )
@@ -100,11 +101,23 @@ def _load_source(cfg, source: str, codex_file: str) -> tuple[pd.DataFrame, str]:
         fw = load_codex_annotations(path)
         return fw, f"codex_full_dump[{codex_file}]"
     except ValueError:
-        curated = load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather")
-        fw = load_codex_gene_matches(path, curated)
-        label = (f"codex_search_export[{codex_file}, matched_on={fw.attrs['matched_on']}, "
-                 f"{fw.attrs['n_matched']}/{fw.attrs['n_in_export']} matched]")
+        pass
+
+    curated = load_flywire_annotations(cfg.data_raw / "flywire_annotations.feather")
+    try:
+        fw = load_codex_community_labels(path, curated)
+        label = (f"codex_community_labels[{codex_file}, "
+                 f"{fw.attrs['n_label_rows_matched']} fru/dsx label rows -> "
+                 f"{fw.attrs['n_positive_root_ids']} neurons, "
+                 f"{fw.attrs['n_matched_in_population']} in population]")
         return fw, label
+    except ValueError:
+        pass
+
+    fw = load_codex_gene_matches(path, curated)
+    label = (f"codex_search_export[{codex_file}, matched_on={fw.attrs['matched_on']}, "
+             f"{fw.attrs['n_matched']}/{fw.attrs['n_in_export']} matched]")
+    return fw, label
 
 
 def main() -> None:

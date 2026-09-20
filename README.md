@@ -14,7 +14,7 @@ README covers setup and reproduction; the plan behind the project is in
 
 ## Headline result
 
-Four independent lines of evidence, each gating the next:
+Five independent lines of evidence, each gating the next:
 
 1. **The residual is real and structured** (Phase 0/1) — 38.9-45.6% of
    dimorphic/male-specific neurons carry no *fru*/*dsx* annotation,
@@ -37,6 +37,10 @@ Four independent lines of evidence, each gating the next:
    and the *fru*/*dsx*-explained set as dimorphic at statistically
    indistinguishable rates (87.8% vs. 84.8%, p=0.768) — the residual
    isn't disproportionately made of artifacts.
+
+5. **Not just an annotation gap** (cross-check) — an independent
+   annotation source agrees the residual lacks fru/dsx for **97.7%** of
+   it; the measured ascertainment-bias rate is 2.3%.
 
 No new gene or confirmed mechanism is claimed. See
 [docs/paper.md](docs/paper.md) section 6 for exactly what is and isn't
@@ -237,20 +241,26 @@ indistinguishable rates (87.8% vs 84.8%, p=0.768) — the residual isn't
 disproportionately made of artifacts, supporting that it reflects real,
 independently-replicable biology.
 
-**Annotation cross-check (biology vs. ascertainment bias): inconclusive,
-for an instructive reason.** Run
-`python scripts/run_annotation_crosscheck.py`. Full writeup:
-[docs/annotation_crosscheck_results.md](docs/annotation_crosscheck_results.md).
-This targets the project's central open question by re-checking the
-residual against FlyWire's own `fru_dsx` column. The raw result looks
-overwhelming (0% of 182 residual neurons FlyWire-positive vs. 80.2% of
-explained, p=6.7e-67) — and it does not count. FlyWire calls fru/dsx on
-zero neurons MaleCNS called negative, so its labels are a strict subset
-of MaleCNS's and the residual's 0% is true by construction. The script
-detects that nesting automatically and returns INCONCLUSIVE instead of
-the biology verdict the statistics would otherwise support. Resolving it
-needs a genuinely independent fru/dsx source; the machinery is built and
-will run unchanged against one.
+**Annotation cross-check (biology vs. ascertainment bias): ANSWERED.**
+Run `python scripts/run_annotation_crosscheck.py --source codex --codex-file codex_labels.csv.gz`.
+Full writeup: [docs/annotation_crosscheck_results.md](docs/annotation_crosscheck_results.md).
+This settles the project's central open question — is the residual real,
+or just neurons nobody annotated? Tested against FlyWire **Codex
+community labels**, a genuinely independent source (it calls fru/dsx on
+13 neurons MaleCNS called negative, and disagrees in both directions).
+Result: the residual is 7.3% Codex-positive against 75.7% for the
+explained set (p=3.4e-43). **The measured ascertainment-bias rate is
+2.3% — the other 97.7% of the residual is called fru/dsx-negative by
+both sources independently.** The 13 exceptions are real known fru
+neurons (aSP22, DNp48, DNp67…), which is a check that the method
+detects what it should.
+
+A first attempt, against FlyWire's *curated* `fru_dsx` column, gave an
+apparently overwhelming result (0% vs 80.2%, p=6.7e-67) that had to be
+discarded: that column never fires where MaleCNS didn't, so the
+residual's 0% was true by construction. The script detects such nesting
+automatically and returns INCONCLUSIVE rather than the biology verdict
+the statistics would otherwise support. Both runs are documented.
 
 All four data-driven phases (0-4) are now complete.
 

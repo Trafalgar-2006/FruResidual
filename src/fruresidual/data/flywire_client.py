@@ -100,6 +100,76 @@ def load_codex_annotations(path: Path) -> pd.DataFrame:
 
 _ROOT_ID_CANDIDATES = ["root_id", "root id", "rootid", "id", "cell_id", "segment_id"]
 
+# Word-boundary matching, NOT substring. "fru" as a substring also hits
+# "fruit"/"fruity" (food-odour annotations) and "Centrifrugal" -- that is
+# how a naive scan of BANC's cell_function_detailed produced 639 spurious
+# hits. Verified against the real Codex label text (2026-09-20): this
+# pattern keeps 2,516 of 2,518 naive matches and the only thing it drops
+# is "C2, Centrifrugal", which is correct. "frum" is listed separately
+# because \bfru\b cannot match inside "FruM" (the male-specific Fru
+# protein), while "fru-like" and "fru+" match fine since - and + are
+# word boundaries.
+# Non-capturing group: pandas warns on capture groups in str.contains.
+CODEX_FRU_DSX_LABEL_PATTERN = r"\b(?:fru|frum|fruitless|dsx|doublesex)\b"
+
+
+def load_codex_community_labels(
+    path: Path, flywire_annotations: pd.DataFrame
+) -> pd.DataFrame:
+    """Third Codex ingestion route, and the one that actually applies:
+    the free-text **community labels** export (`labels.csv.gz`).
+
+    Codex's download page has no gene-expression file. The
+    `Gene Expression: Fruitless` field shown in its web UI is backed by
+    community labels like "putative fru", "putative dsx", and
+    literature-cited entries ("FruM/OA neuron; Certel et al., 2010";
+    "aSP22, fru+ descending neuron ... McKellar et al. 2019"). Those
+    trace to published light-microscopy expression work rather than to
+    MaleCNS, which is exactly the independent provenance this
+    cross-check needs.
+
+    The file is one row per (neuron, label) with many labels per neuron,
+    so it is filtered to fru/dsx-mentioning labels, reduced to the set of
+    positive root_ids, and joined onto the full FlyWire population. The
+    population and the structural fields (super_class, cell_type) come
+    from the curated table -- safe, because those are not fru/dsx calls
+    and so cannot leak the variable under test.
+    """
+    raw = pd.read_csv(path, low_memory=False, dtype=str)
+    if "label" not in raw.columns or "root_id" not in raw.columns:
+        raise ValueError(
+            f"{path.name} does not look like a Codex community-labels export "
+            f"(needs 'root_id' and 'label'). Columns present: {sorted(raw.columns)}"
+        )
+
+    is_fru_dsx = raw["label"].astype("string").str.contains(
+        CODEX_FRU_DSX_LABEL_PATTERN, case=False, regex=True, na=False
+    )
+    positive_roots = set(raw.loc[is_fru_dsx, "root_id"].astype("string").str.strip().dropna())
+
+    fw = flywire_annotations.copy()
+    fw["root_id"] = fw["root_id"].astype("string").str.strip()
+    is_positive = fw["root_id"].isin(positive_roots)
+
+    if not int(is_positive.sum()):
+        raise ValueError(
+            f"{path.name} yielded {len(positive_roots)} fru/dsx-labelled neurons but none "
+            "matched the FlyWire population. The export is probably from a different "
+            "dataset -- this cross-check needs FAFB v783."
+        )
+
+    out = pd.DataFrame({
+        "cell_type": fw["cell_type"],
+        "super_class": fw["super_class"],
+        "fru_dsx": pd.Series(["codex_label"] * len(fw), dtype="string").where(
+            is_positive.to_numpy(), other=pd.NA
+        ),
+    })
+    out.attrs["n_label_rows_matched"] = int(is_fru_dsx.sum())
+    out.attrs["n_positive_root_ids"] = len(positive_roots)
+    out.attrs["n_matched_in_population"] = int(is_positive.sum())
+    return out[out["cell_type"].notna()].reset_index(drop=True)
+
 
 def load_codex_gene_matches(
     path: Path, flywire_annotations: pd.DataFrame

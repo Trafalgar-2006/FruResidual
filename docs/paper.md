@@ -3,7 +3,7 @@
 *Solo research project. All numbers below are reproduced by
 `scripts/run_phase0.py` through `scripts/run_phase4.py`, regression-tested
 in `tests/`, and cited from the per-phase writeups (`docs/phaseN_results.md`)
-this document summarizes. Run: 2026-09-17 through 2026-09-19.*
+this document summarizes. Run: 2026-09-17 through 2026-09-20.*
 
 ![Headline figure](../reports/figures/summary_headline.png)
 
@@ -16,7 +16,7 @@ connectome, reported that *fru*/*dsx* correspondence with dimorphism is
 "high but not perfect": roughly 40% of dimorphic and 10% of male-specific
 neurons carry no *fru*/*dsx* annotation at all. This project treats that
 unexplained set — the **residual** — as the object of study rather than
-noise. Working from MaleCNS v1.0, FlyWire/FAFB, and BANC, four
+noise. Working from MaleCNS v1.0, FlyWire/FAFB, BANC and FlyWire Codex, five
 independent lines of evidence are assembled: (1) the residual is large
 (38.9–45.6% of dimorphic/male-specific neurons, robust to the *fru*/*dsx*
 confidence-threshold choice) and concentrates in specific neuropils, most
@@ -36,7 +36,12 @@ intensity; (4) an independent female reconstruction (BANC)
 confirms the residual and the *fru*/*dsx*-explained set as dimorphic at
 statistically indistinguishable rates (87.8% vs. 84.8%, p=0.768),
 arguing the residual reflects real biology rather than an annotation or
-matching artifact specific to one dataset. No new gene is identified —
+matching artifact specific to one dataset; and (5) an independent
+annotation source (FlyWire Codex community labels, provenance verified
+by the fact that it calls *fru*/*dsx* on neurons MaleCNS did not) agrees
+the residual lacks *fru*/*dsx* for 97.7% of it, putting the measured
+ascertainment-bias rate at 2.3% and ruling out the strong version of the
+"it's just unannotated" objection. No new gene is identified —
 the contribution is a validated method and a concrete, falsifiable
 hypothesis about where a second driver of brain sex differences would be
 found.
@@ -51,11 +56,11 @@ neurons are *fru*+/*dsx*+ — already imply the answer is "mostly, not
 entirely," and the paper explicitly flags two possible reasons: real
 biology (an uncharacterized second driver) or an artifact (incomplete
 gene-expression annotation). This project does not resolve that
-ambiguity by fiat; it builds a pipeline to interrogate it from four
+ambiguity by fiat; it builds a pipeline to interrogate it from five
 independent angles — spatial distribution, predictive modeling,
-connectivity-structure enrichment, and independent cross-dataset
-replication — and reports honestly wherever the ambiguity survives a
-given angle.
+connectivity-structure enrichment, independent cross-dataset
+replication, and an independent-annotation cross-check — and reports
+honestly wherever the ambiguity survives a given angle.
 
 **The pitch, in one sentence:** using the male and female fly
 connectomes, predict which neurons are sexually rewired from the known
@@ -76,6 +81,7 @@ against a second independent dataset.
 | MaleCNS v1.0 | primary: 165,122 traced neurons, per-neuron `dimorphism` and `fruDsx` annotations | neuPrint (targeted queries) + public bulk feather files |
 | FlyWire/FAFB | female brain-only comparison, 139,248-neuron curated annotation table | `flyconnectome/flywire_annotations` (curated, preferred over Codex) + CAVEclient live connectivity |
 | BANC | second, independent female whole-CNS reconstruction (188,508 neurons), used for Phase 4 replication | public bulk metadata table (no auth); live connectivity blocked by an account-level CAVE permission gap — see [Section 4.5](#45-independent-replication-phase-4) |
+| FlyWire Codex | independent *fru*/*dsx* annotation (community labels citing the light-microscopy literature), used for the §4.6 cross-check | `labels.csv.gz` from Codex → Download Data, FAFB v783 |
 
 All three are accessed exactly as documented in `docs/project_plan.md`
 section (b); per-phase access details and caveats are in
@@ -291,6 +297,45 @@ is BANC-unassessed rather than a real disagreement (recall moves 87.2%→
 87.8% restricted to assessed-only neurons), and all 148 sit on
 BANC-proofread reconstructions.
 
+### 4.6 Is the residual just unannotated? Mostly not
+
+Every result above rests on MaleCNS's own *fru*/*dsx* annotation, so all
+of them are vulnerable to one objection: the residual might simply be
+neurons nobody got round to annotating, concentrated wherever annotation
+effort was thinnest. A second, independent annotation can test that
+directly — if the residual's counterparts are often *fru*/*dsx*-positive
+elsewhere, MaleCNS just missed them.
+
+FlyWire **Codex community labels** provide that second source. They are
+free-text annotations citing the light-microscopy literature ("putative
+fru", "FruM/OA neuron; Certel et al., 2010", "aSP22, fru+ descending
+neuron … McKellar et al. 2019"), so their provenance is independent of
+MaleCNS — confirmed empirically: they call *fru*/*dsx* on 13 neurons
+MaleCNS called negative, and disagree in both directions (8.6% overall).
+
+| population | n matched | Codex says *fru*/*dsx*+ |
+|---|---|---|
+| residual (MaleCNS *fru*/*dsx*−) | 178 | **13 (7.3%)** |
+| explained (MaleCNS *fru*/*dsx*+) | 177 | 134 (75.7%) |
+
+Restricted to super_classes where Codex demonstrably annotates
+*fru*/*dsx*; Fisher p = 3.4e-43. Across all matched neurons the measured
+ascertainment-bias rate is **2.3%** (13 of 576) — the other **97.7% are
+called negative by both sources independently**. Those 13 are real,
+known *fru* neurons rather than noise (aSP22, DNp48, DNp67, DNg66,
+AOTU012, SMP551, LHAV2b2), which is itself a check that the method
+detects what it should.
+
+Codex is the *smaller* annotation set (1,226 positives vs the curated
+table's 3,308), so sparseness is the obvious objection — but the
+explained set controls for it exactly, same source and same sparseness,
+and Codex recovers 75.7% of it.
+
+This rules out the strong ascertainment explanation. It does not prove a
+second driver: both sources could share a blind spot inherited from the
+same light-microscopy literature, and neither has meaningful optic-lobe
+coverage (Codex: 0.01%), which is where most of the residual sits.
+
 ## 5. Limitations, stated plainly
 
 Collected from each phase's own writeup, not softened:
@@ -311,19 +356,18 @@ Collected from each phase's own writeup, not softened:
   artifact. It says nothing about the poorly-annotated periphery, where
   the ambiguity remains wide open.
 
-  A direct test was attempted and **failed for an instructive reason**
-  (`docs/annotation_crosscheck_results.md`). Re-checking the residual
-  against FlyWire's own `fru_dsx` column gives what looks like
-  overwhelming support for biology — 0% of 182 residual neurons are
-  FlyWire-fru/dsx-positive against 80.2% of the explained set, in strata
-  where FlyWire demonstrably does annotate fru/dsx, p=6.7e-67. It does
-  not count. FlyWire calls fru/dsx on **zero** neurons MaleCNS called
-  negative, so its labels are a strict subset of MaleCNS's and
-  P(FlyWire+ | MaleCNS−) = 0 holds by construction. The p-value measures
-  the annotation's provenance, not biology. Settling this needs a
-  genuinely independent fru/dsx source (FlyWire Codex's `gene` field, or
-  the Deutsch/Murthy-lab catalogue); the machinery is built and will run
-  unchanged against one.
+  A direct test now exists and **rules out the strong version of the
+  ascertainment explanation** (`docs/annotation_crosscheck_results.md`,
+  §4.6). Two attempts were needed. The first, against FlyWire's curated
+  `fru_dsx` column, produced an apparently overwhelming result (0% of
+  182 residual vs 80.2% of explained, p=6.7e-67) that had to be thrown
+  out: that column never fires where MaleCNS didn't, so
+  P(positive | MaleCNS−) = 0 by construction and the p-value was
+  measuring annotation provenance, not biology. The second, against
+  FlyWire **Codex community labels**, is genuinely independent — it
+  calls fru/dsx on 13 neurons MaleCNS called negative — and it answers
+  the question: **97.7% of the residual is called fru/dsx-negative by
+  both sources independently.**
 - **Phase 2's wiring-difference metric is coarse** (10 superclass-level
   partner categories, not fine partner identity) and **brain-only**
   (FlyWire has no VNC), so any genuinely VNC-driven rewiring is

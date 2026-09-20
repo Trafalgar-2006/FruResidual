@@ -1,6 +1,71 @@
 # Biology vs. ascertainment bias: the independent-annotation cross-check
 
-Run: 2026-09-19, via `scripts/run_annotation_crosscheck.py`.
+Runs: 2026-09-19 (curated table, inconclusive) and **2026-09-20 (Codex
+community labels — this one answers the question)**, via
+`scripts/run_annotation_crosscheck.py`.
+
+---
+
+## ANSWER (2026-09-20): the residual is mostly not ascertainment bias
+
+Using FlyWire **Codex community labels** as the second source — a
+genuinely independent annotation, unlike the curated table — the test is
+admissible and it comes back:
+
+| population | n matched | Codex says fru/dsx+ |
+|---|---|---|
+| residual (MaleCNS fru/dsx−) | 178 | **13 (7.3%)** |
+| explained (MaleCNS fru/dsx+) | 177 | 134 (75.7%) |
+
+(restricted to super_classes where Codex demonstrably annotates fru/dsx;
+Fisher p = 3.4e-43. Unrestricted: 13/576 vs 136/189, p = 1.5e-89.)
+
+**Why this one counts and the earlier one did not:**
+`independence_diagnostic` reports **PARTIALLY INDEPENDENT** —
+`n_malecns_neg_flywire_pos = 13`, i.e. Codex calls fru/dsx on 13 neurons
+MaleCNS called negative. It is demonstrably *capable* of catching
+MaleCNS's misses. It disagrees in both directions (53 the other way,
+8.6% overall). Nothing is true by construction here.
+
+**The measured ascertainment-bias rate is 2.3%.** Of 576 residual
+neurons matched to FlyWire, exactly 13 turn out to carry an independent
+fru/dsx call that MaleCNS missed. The other **97.7% are called
+fru/dsx-negative by both sources independently**.
+
+Those 13 are real and biologically sensible, which is itself a check on
+the method — they are known fru neurons, not noise:
+
+| bodyId(s) | type | superclass |
+|---|---|---|
+| 10090, 10104 | **aSP22** — fru+ courtship descending neuron (McKellar et al. 2019) | descending_neuron |
+| 10680, 10823 | DNp48 | descending_neuron |
+| 12325, 12435 | DNp67 | descending_neuron |
+| 13432 | DNg66 | descending_neuron |
+| 10406, 531863 | AOTU012 | cb_intrinsic |
+| 13388, 14935 | SMP551 / SLPpm3_H01 | cb_intrinsic |
+| 21860, 22040 | LHAV2b2_c | cb_intrinsic |
+
+**The obvious objection, tested:** Codex is the *smaller* annotation set
+(1,226 positives vs the curated table's 3,308), so could its low hit-rate
+on the residual just be sparseness? No — the explained set is the control
+for exactly that, same source and same sparseness, and Codex finds
+**72.0%** of it. If sparseness drove the residual's rate, the explained
+set would be low too.
+
+**What this does and does not establish.** It rules out the strong
+version of the ascertainment-bias explanation: the residual is not simply
+"neurons MaleCNS forgot to annotate", because an independent source that
+provably can catch such misses catches them for only 2.3% of it. It does
+not prove a second genetic driver exists — both sources could share a
+blind spot inherited from the same underlying light-microscopy
+literature, and neither has any real coverage in the optic lobe
+(Codex: 0.01%), where most of the residual lives. Read together with
+Phase 3's degree-adjusted `cb_intrinsic` result, the two independent
+lines now point the same way.
+
+---
+
+## The 2026-09-19 run, kept because the failure is instructive
 
 This targets the project's central open question, flagged since Phase 1:
 is the fru/dsx-unexplained residual **real biology**, or an artifact of
@@ -81,8 +146,12 @@ direction that cannot help here.
   connectivity differences surviving both regional stratification and
   degree adjustment. That argument does not depend on a second
   annotation at all.
-- **Still needed:** a genuinely independent fru/dsx source, one built
-  without reference to MaleCNS. Two candidates, neither yet obtained:
+- **Resolved 2026-09-20** by the Codex community labels — see the ANSWER
+  section at the top. The candidates listed below were the plan at the
+  time; the first of them is what worked.
+
+- **What was needed:** a genuinely independent fru/dsx source, one built
+  without reference to MaleCNS. Two candidates:
   1. **FlyWire Codex's `gene` field** (`gene==Fruitless`, `gene==Doublesex`).
      Per the plan (section b.5) these exist in Codex, and Codex's README
      explicitly warns its annotations come from a *mix of sources* that
@@ -93,10 +162,11 @@ direction that cannot help here.
      neurons, annotated from light-microscopy expression on the FlyWire
      side. Independent by construction.
 
-  If either source calls fru/dsx on neurons MaleCNS called negative, the
-  `independence_diagnostic` will report `PARTIALLY INDEPENDENT` and the
-  test becomes informative. The machinery is already built and will run
-  unchanged against a different `fru_dsx` column.
+  The first of these is what resolved it: the `gene` field is backed by
+  Codex **community labels**, which is where the fru/dsx calls actually
+  live (there is no gene-expression file on the download page). It
+  reported `PARTIALLY INDEPENDENT` and the test became informative,
+  exactly as predicted here.
 
 ## Reproduce
 

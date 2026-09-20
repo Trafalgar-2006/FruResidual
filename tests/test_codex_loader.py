@@ -160,3 +160,61 @@ def test_export_from_the_wrong_dataset_fails_with_a_useful_message(tmp_path):
     msg = str(exc.value)
     assert "different dataset" in msg
     assert "FAFB v783" in msg
+
+
+def test_community_label_matching_rejects_fruit_and_centrifrugal(tmp_path):
+    """The whole cross-check hinges on this regex. A naive "fru" substring
+    also matches "fruit"/"fruity" (food-odour annotations) and
+    "Centrifrugal" -- that is how a naive scan of BANC's
+    cell_function_detailed produced 639 spurious hits. Verified against
+    the real Codex label text: word-boundary matching keeps 2,516 of
+    2,518 naive hits and drops only "C2, Centrifrugal".
+    """
+    from fruresidual.data.flywire_client import load_codex_community_labels
+
+    labels = _write(tmp_path, [
+        ("720575940600000001", "putative fru"),
+        ("720575940600000002", "putative dsx"),
+        ("720575940600000003", "C2, Centrifrugal"),          # must NOT match
+        ("720575940600000004", "decaying_fruit_volatile"),   # must NOT match
+    ], ["root_id", "label"], name="labels.csv")
+
+    out = load_codex_community_labels(labels, _curated())
+    pos = set(out.loc[out["fru_dsx"].notna(), "cell_type"])
+    assert pos == {"T1", "T2"}, "fruit/Centrifrugal must not count as fru"
+
+
+def test_community_labels_match_real_world_label_forms(tmp_path):
+    """Forms that appear verbatim in the Codex export and must all count."""
+    from fruresidual.data.flywire_client import load_codex_community_labels
+
+    labels = _write(tmp_path, [
+        ("720575940600000001", "FruM/OA neuron?; Certel et al., 2010"),
+        ("720575940600000002", "aSP22, fru+ descending neuron involved in courtship sequence"),
+        ("720575940600000003", "neuPrint aSP-f4 (fru-like according to the hemibrain paper)"),
+        ("720575940600000004", "some unrelated label"),
+    ], ["root_id", "label"], name="labels.csv")
+
+    out = load_codex_community_labels(labels, _curated())
+    pos = set(out.loc[out["fru_dsx"].notna(), "cell_type"])
+    assert pos == {"T1", "T2", "T3"}, "FruM / fru+ / fru-like must all match"
+
+
+def test_community_labels_retain_full_population(tmp_path):
+    # The coverage denominator needs every neuron, not just the positives.
+    from fruresidual.data.flywire_client import load_codex_community_labels
+
+    labels = _write(tmp_path, [("720575940600000001", "putative fru")],
+                    ["root_id", "label"], name="labels.csv")
+    out = load_codex_community_labels(labels, _curated())
+    assert len(out) == 4
+    assert int(out["fru_dsx"].notna().sum()) == 1
+
+
+def test_community_labels_reject_a_non_labels_file(tmp_path):
+    from fruresidual.data.flywire_client import load_codex_community_labels
+
+    p = _write(tmp_path, [("T1", "central")], ["cell_type", "super_class"])
+    with pytest.raises(ValueError) as exc:
+        load_codex_community_labels(p, _curated())
+    assert "community-labels" in str(exc.value)
