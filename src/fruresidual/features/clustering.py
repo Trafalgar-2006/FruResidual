@@ -89,3 +89,73 @@ def cluster_enrichment(
     return category_enrichment(
         cluster_labels[is_residual], cluster_labels, alpha=alpha, min_odds_ratio=min_odds_ratio
     )
+
+
+def label_permutation_null(
+    graph: ig.Graph,
+    residual_body_ids: set[int],
+    resolution: float,
+    n_permutations: int = 1000,
+    random_state: int = 0,
+    min_odds_ratio: float = 2.0,
+) -> dict:
+    """Empirical null for the cluster-enrichment result.
+
+    `cluster_enrichment` reports a Fisher/BH p-value, which assumes the
+    cluster assignment is independent of the residual labels. It is not:
+    the clusters were derived from the same connectivity data, and the
+    resolution was chosen by a sweep. That makes the parametric p-value
+    optimistic by an unknown amount. docs/project_plan.md section (e)
+    calls for a degree-preserving null precisely for this reason and it
+    was never built.
+
+    Method: hold the graph and its clustering FIXED, and permute which
+    neurons carry the residual label, `n_permutations` times. The
+    observed statistic is the maximum enrichment odds ratio across
+    clusters; the null distribution is that same statistic under random
+    labelling. The empirical p-value is the fraction of permutations
+    reaching the observed value.
+
+    Permuting labels rather than rewiring edges is the right null here.
+    Rewiring would test "is this graph unusual", which is not the claim.
+    The claim is "residual neurons sit in one cluster more than chance",
+    so chance means the same graph and the same clusters with the
+    residual label scattered at random -- and it preserves every
+    degree, every community, and the residual set's size exactly.
+    """
+    labels = leiden_cluster(graph, resolution=resolution, random_state=random_state)
+    body_ids = labels.index.to_numpy()
+    n_residual = int(pd.Series(body_ids).isin(residual_body_ids).sum())
+
+    def _max_odds(residual_mask: np.ndarray) -> float:
+        result = category_enrichment(
+            labels[residual_mask], labels, min_odds_ratio=min_odds_ratio
+        )
+        return float(result["odds_ratio"].max()) if len(result) else float("nan")
+
+    observed_mask = pd.Series(body_ids).isin(residual_body_ids).to_numpy()
+    observed = _max_odds(observed_mask)
+
+    rng = np.random.default_rng(random_state)
+    null = np.empty(n_permutations, dtype=float)
+    for i in range(n_permutations):
+        shuffled = np.zeros(len(body_ids), dtype=bool)
+        shuffled[rng.choice(len(body_ids), size=n_residual, replace=False)] = True
+        null[i] = _max_odds(shuffled)
+
+    # +1 in numerator and denominator: an empirical p-value must never be
+    # exactly 0, since n_permutations only bounds it from above.
+    n_ge = int(np.sum(null >= observed))
+    return {
+        "observed_max_odds_ratio": observed,
+        "n_permutations": n_permutations,
+        "null_mean": float(np.nanmean(null)),
+        "null_std": float(np.nanstd(null)),
+        "null_p95": float(np.nanpercentile(null, 95)),
+        "null_max": float(np.nanmax(null)),
+        "n_null_ge_observed": n_ge,
+        "empirical_p_value": float((n_ge + 1) / (n_permutations + 1)),
+        "resolution": resolution,
+        "n_residual": n_residual,
+        "n_total": len(body_ids),
+    }

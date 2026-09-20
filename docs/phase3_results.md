@@ -152,6 +152,34 @@ interneuron partners and cluster together connectivity-wise, independent
 of the degree confound found elsewhere, and the cluster split isn't an
 artifact of one arbitrary resolution choice.
 
+**Empirical null (added 2026-09-20).** The BH p-value above assumes
+cluster assignment is independent of the residual labels, which it is
+not — the clusters were derived from the same connectivity data and the
+resolution was picked by a sweep, so the parametric value is optimistic
+by an unknown amount. `docs/project_plan.md` section (e) asked for a
+degree-preserving null for exactly this reason and it had never been
+built.
+
+`label_permutation_null` holds the graph and its clustering **fixed**
+and shuffles which neurons carry the residual label, 1,000 times. That
+preserves every degree, every community and the residual set's size
+exactly, and asks the right question — "do residual neurons concentrate
+in one cluster more than chance", where chance means the same graph with
+the labels scattered.
+
+| | value |
+|---|---|
+| observed max odds ratio | **2.68** |
+| null mean | 1.36 |
+| null 95th percentile | 2.04 |
+| shuffles reaching the observed value | **11 / 1,000** |
+| **empirical p** | **0.012** |
+
+The finding survives, and the empirical p (0.012) lands essentially on
+top of the parametric p_adj (0.012) — so in this case the parametric
+assumption was not inflating anything. That agreement is worth more than
+either number alone, because it was not guaranteed.
+
 ### cb_intrinsic — largest stratum, and the degree caveat is now resolved
 
 1,397/4,860 partner types significant marginally, **1,429 after degree

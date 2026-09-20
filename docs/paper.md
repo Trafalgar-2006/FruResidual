@@ -250,6 +250,14 @@ swept resolutions concentrating 60.7% of residual neurons in one cluster
 against 33% of background (odds ratio 2.68, p_adj=0.012), with no
 detected degree confound (Mann-Whitney p=0.855).
 
+That cluster result also survives an **empirical null**: holding the
+graph and its clustering fixed and shuffling the residual labels 1,000
+times gives a null whose mean max-odds-ratio is 1.36 and 95th percentile
+2.04, against an observed 2.68 — only 11 of 1,000 shuffles reach it,
+empirical p = 0.012. This matters because the parametric p assumes
+cluster assignment is independent of the labels, which it is not; the
+two p-values agreeing to three decimals was not guaranteed.
+
 `vnc_intrinsic` largely dissolved — 86% of its motifs were degree
 artifact, confirming the old caveat's suspicion. `cb_intrinsic` did
 **not**: its motifs survive at 102%, so degree does not explain them, and

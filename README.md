@@ -29,9 +29,10 @@ Five independent lines of evidence, each gating the next:
    does not beat that baseline.)
 3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
    yields a degree-adjusted, resolution-robust connectivity cluster
-   concentrating 60.7% of its residual neurons (odds ratio 2.68) plus 25
-   partner-type motifs that survive Cochran-Mantel-Haenszel adjustment
-   for connectivity intensity.
+   concentrating 60.7% of its residual neurons (odds ratio 2.68,
+   empirical p=0.012 against a 1,000-shuffle label-permutation null)
+   plus 25 partner-type motifs that survive Cochran-Mantel-Haenszel
+   adjustment for connectivity intensity.
 4. **Independently replicated** (Phase 4) — BANC, a second female
    reconstruction from a different research group, confirms the residual
    and the *fru*/*dsx*-explained set as dimorphic at statistically
@@ -261,6 +262,20 @@ discarded: that column never fires where MaleCNS didn't, so the
 residual's 0% was true by construction. The script detects such nesting
 automatically and returns INCONCLUSIVE rather than the biology verdict
 the statistics would otherwise support. Both runs are documented.
+
+**scRNA-seq route for the optic-lobe gap: assessed and rejected.** Full
+writeup: [docs/scrnaseq_route_assessment.md](docs/scrnaseq_route_assessment.md).
+The one region Phase 6 could not speak to is the optic lobe (372 of 576
+matched residual neurons). Single-cell RNA-seq looked like the answer;
+it is not, for three independent reasons. `fru` cannot be measured by 3'
+10x at all (its promoters differ at the 5' end, and only P1 is the
+sex-specific transcript the connectome annotations mean — the data shows
+`fru` in ~48% of all optic cells, a different quantity entirely). The
+`dsx` signal is real and sharp but sits in two **glial** clusters
+(`repo`/`wrapper`/`alrm`/`moody`, zero neuronal markers), and glia are
+not in the connectome. And the cluster→cell-type mapping needed to join
+any of it is not in the public files. Assessed in about half an hour
+rather than discovered weeks in.
 
 All four data-driven phases (0-4) are now complete.
 

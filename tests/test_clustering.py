@@ -77,3 +77,58 @@ def test_cluster_enrichment_detects_concentrated_residual():
     residual_ids = set(range(60))
     result = cluster_enrichment(labels, residual_ids)
     assert result["significant"].any()
+
+
+def test_permutation_null_rejects_a_structureless_graph():
+    """If the residual label has nothing to do with the clustering, the
+    observed enrichment should sit inside the null distribution. This is
+    the failure mode the parametric BH p-value cannot see: it assumes
+    cluster assignment is independent of the labels, when the clusters
+    came from the same data and the resolution was chosen by a sweep.
+    """
+    import numpy as np
+
+    from fruresidual.features.clustering import build_knn_graph, label_permutation_null
+
+    rng = np.random.default_rng(0)
+    # 120 neurons, random profiles -> no real community structure
+    matrix = pd.DataFrame(
+        rng.normal(size=(120, 8)),
+        index=range(1000, 1120),
+        columns=[f"c{i}" for i in range(8)],
+    )
+    graph = build_knn_graph(matrix, k=10)
+    residual = set(rng.choice(matrix.index, size=60, replace=False).tolist())
+
+    out = label_permutation_null(graph, residual, resolution=0.1,
+                                 n_permutations=100, random_state=0)
+    assert out["n_permutations"] == 100
+    assert out["n_residual"] == 60
+    # an empirical p-value can never be exactly 0
+    assert 0 < out["empirical_p_value"] <= 1.0
+    # random labels on a structureless graph must not look significant
+    assert out["empirical_p_value"] > 0.05
+
+
+def test_permutation_null_detects_a_planted_cluster_signal():
+    """Guards over-correction: a real, planted association must still
+    come out significant, or the null would reject everything."""
+    import numpy as np
+
+    from fruresidual.features.clustering import build_knn_graph, label_permutation_null
+
+    rng = np.random.default_rng(0)
+    # two well-separated groups; residual label given to one of them
+    a = rng.normal(loc=0.0, scale=0.1, size=(60, 8))
+    b = rng.normal(loc=8.0, scale=0.1, size=(60, 8))
+    matrix = pd.DataFrame(
+        np.vstack([a, b]), index=range(2000, 2120),
+        columns=[f"c{i}" for i in range(8)],
+    )
+    graph = build_knn_graph(matrix, k=10)
+    residual = set(range(2000, 2060))  # exactly the first group
+
+    out = label_permutation_null(graph, residual, resolution=0.1,
+                                 n_permutations=100, random_state=0)
+    assert out["empirical_p_value"] <= 0.05
+    assert out["observed_max_odds_ratio"] > out["null_p95"]

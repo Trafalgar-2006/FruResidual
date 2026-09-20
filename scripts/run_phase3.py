@@ -36,6 +36,7 @@ from fruresidual.features.clustering import (
     build_knn_graph,
     build_profile_matrix,
     cluster_enrichment,
+    label_permutation_null,
     leiden_cluster,
 )
 from fruresidual.features.fru_dsx_join import (
@@ -59,6 +60,9 @@ MIN_MOTIF_NEURONS = 10
 # resolution=0.1 never validated against real data; fixed 2026-09-18
 # during a full-project audit).
 CLUSTER_RESOLUTION_SWEEP = [0.02, 0.05, 0.1, 0.2, 0.3]
+# Permutations for the empirical cluster null. 1000 bounds the smallest
+# reportable p-value at ~1/1001, which is ample against alpha=0.05.
+N_PERMUTATIONS = 1000
 
 # Annotation dimensions carried over from Phase 1. Phase 1 tested these
 # MARGINALLY (whole dimorphic population at once), which predates the
@@ -105,6 +109,7 @@ def main() -> None:
     all_motif_results, all_cluster_results, shortlist, degree_confound_results = [], [], [], []
     resolution_sweep_results = []
     all_annotation_results = []
+    permutation_null_results = []
 
     for _, stratum_row in mixed_strata.iterrows():
         sc = stratum_row["superclass"]
@@ -224,6 +229,26 @@ def main() -> None:
         print(f"  clusters: significant residual enrichment found at {sweep_hits}/{len(CLUSTER_RESOLUTION_SWEEP)} "
               f"swept resolutions -> {'ROBUST' if robust else 'not robust, excluded from shortlist'}")
 
+        # Empirical null for any stratum whose cluster result is robust.
+        # The BH p-value from cluster_enrichment assumes cluster
+        # assignment is independent of the residual labels, which it is
+        # not -- clusters come from the same connectivity data and the
+        # resolution was chosen by a sweep. Permuting the labels over the
+        # fixed graph gives a null that respects all of that.
+        if robust and best_res is not None:
+            null = label_permutation_null(
+                graph, stratum_residual, resolution=best_res,
+                n_permutations=N_PERMUTATIONS, random_state=0,
+            )
+            null["superclass"] = sc
+            permutation_null_results.append(null)
+            print(f"  permutation null ({null['n_permutations']} label shuffles, "
+                  f"graph and clusters held fixed):")
+            print(f"    observed max odds ratio = {null['observed_max_odds_ratio']:.2f}, "
+                  f"null mean = {null['null_mean']:.2f}, 95th pct = {null['null_p95']:.2f}")
+            print(f"    empirical p = {null['empirical_p_value']:.4f} "
+                  f"({null['n_null_ge_observed']}/{null['n_permutations']} shuffles reached it)")
+
         if best_result is not None:
             best_result["superclass"] = sc
             best_result["resolution"] = best_res
@@ -320,6 +345,7 @@ def main() -> None:
         "n_cluster_candidates_significant_stratified": int(cluster_all["significant"].sum()) if len(cluster_all) else 0,
         "degree_confound_by_stratum": degree_confound_results,
         "cluster_resolution_sweep": resolution_sweep_results,
+        "cluster_permutation_null": permutation_null_results,
         "shortlist_size": len(shortlist_df),
     }
     with open(cfg.data_processed / "phase3_summary.json", "w") as f:
