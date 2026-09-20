@@ -122,6 +122,38 @@ compares against. Exporting MCNS by mistake would be comparing MaleCNS
 against itself; the loader catches it (`test_export_from_the_wrong_dataset_fails_with_a_useful_message`)
 but it is the easiest way to waste the trip.
 
+### Which file holds the gene annotations — not documented, so find it
+
+Codex's download page (checked 2026-09-20) has **no file named "gene
+expression"**. The `Gene Expression: Fruitless` field visible in the web
+UI lives inside one of the annotation exports and which one is not
+stated. Rather than guess, download the four small candidates —
+**Cell Types** (902 KB), **Classification / Hierarchical Annotations**
+(934 KB), **Community Labels (Refined)** (1 MB), **Community Labels
+(Raw)** (4.8 MB), ~7.6 MB total — into `C:/FruResidualData/raw/` and run:
+
+```
+python scripts/inspect_codex_download.py
+```
+
+It scans every table for cells mentioning fruitless/doublesex and
+reports which file, which column, and how many, ranked. Then point the
+cross-check at the winner with `--codex-file <name>`.
+
+Skip the big ones: Connections (68 MB / 277 MB), Synapse Table (2.7 GB)
+and Neuron Skeletons (13 GB) are connectivity and geometry, not
+annotations.
+
+### Two dead ends already ruled out, so they are not worth retrying
+
+- The curated table's `fru_dsx` column — nested inside MaleCNS (the
+  finding this document is about).
+- The curated table's **`synonyms`** column, which carries 207
+  `fru-F-XXXXXX` light-microscopy clone identifiers and looked like it
+  might be an independent source sitting in already-cached data.
+  Checked: all 207 are *also* `fru_dsx`-positive, zero outside it.
+  Nested too, so it adds nothing.
+
 ### Route A — search export (usually easiest)
 
 1. On **codex.flywire.ai** with **FAFB v783** selected, search
