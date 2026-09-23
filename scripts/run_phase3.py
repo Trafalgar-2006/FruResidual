@@ -47,6 +47,7 @@ from fruresidual.features.fru_dsx_join import (
 from fruresidual.features.motifs import (
     check_degree_confound,
     identify_mixed_strata,
+    motif_permutation_null,
     partner_type_enrichment,
     partner_type_enrichment_degree_adjusted,
 )
@@ -110,6 +111,7 @@ def main() -> None:
     resolution_sweep_results = []
     all_annotation_results = []
     permutation_null_results = []
+    motif_null_results = []
 
     for _, stratum_row in mixed_strata.iterrows():
         sc = stratum_row["superclass"]
@@ -166,6 +168,25 @@ def main() -> None:
             print(sig_adjusted.head(10)[["category", "n_in_subset", "pct_of_subset",
                                          "odds_ratio_degree_adjusted", "p_adj_degree_adjusted"]]
                   .to_string(index=False))
+        # Empirical null for the motif COUNT. BH controls FDR under
+        # assumptions about how the test statistics co-vary, and partner
+        # types are heavily correlated here (neurons touching one type
+        # tend to touch related ones), so the effective number of
+        # independent tests is well below the nominal count. Shuffling
+        # the residual labels over the fixed connectivity matrix says how
+        # many "significant" motifs this machinery produces from noise.
+        motif_null = motif_permutation_null(
+            stratum_motif_profile, stratum_residual, stratum_ids,
+            min_neurons=MIN_MOTIF_NEURONS, n_permutations=N_PERMUTATIONS, random_state=0,
+        )
+        motif_null["superclass"] = sc
+        motif_null_results.append(motif_null)
+        print(f"  motif permutation null ({motif_null['n_permutations']} label shuffles): "
+              f"observed={motif_null['observed_n_significant']}, "
+              f"expected by chance={motif_null['expected_false_positives']:.1f} "
+              f"(95th pct {motif_null['null_p95']:.0f}, max {motif_null['null_max']:.0f}), "
+              f"empirical p={motif_null['empirical_p_value']:.4f}")
+
         for _, row in sig_adjusted.iterrows():
             shortlist.append({
                 "signature_type": f"connectivity_motif[{sc}]", "category": row["category"],
@@ -346,6 +367,7 @@ def main() -> None:
         "degree_confound_by_stratum": degree_confound_results,
         "cluster_resolution_sweep": resolution_sweep_results,
         "cluster_permutation_null": permutation_null_results,
+        "motif_permutation_null": motif_null_results,
         "shortlist_size": len(shortlist_df),
     }
     with open(cfg.data_processed / "phase3_summary.json", "w") as f:

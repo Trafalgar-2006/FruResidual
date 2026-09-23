@@ -255,6 +255,7 @@ def fetch_flywire_type_profiles(
     flywire_types: list[str],
     samples_per_type: int = 15,
     random_state: int = 0,
+    partner_group_col: str = "super_class",
 ) -> pd.DataFrame:
     """For each cell type in `flywire_types`, samples up to
     `samples_per_type` FlyWire neurons of that type, fetches their
@@ -267,12 +268,20 @@ def fetch_flywire_type_profiles(
     every member) keeps the query budget bounded regardless of type size
     (some types have 100+ members -- see docs/phase2_results.md).
 
-    Returns long format: (flywireType, partner_super_class, weight).
+    `partner_group_col` selects the resolution of the partner profile:
+    "super_class" (10 coarse buckets, the Phase 2 default) or "cell_type"
+    (thousands of specific types). The coarse version cannot distinguish
+    "same broad partner category, entirely different specific partners"
+    -- the most obvious form of rewiring -- which is why the finer one
+    exists; see scripts/run_phase2_celltype.py.
+
+    Returns long format: (flywireType, partner_<group col>, weight).
     """
     import fafbseg
 
-    root_col, type_col, sc_col = "root_id", "cell_type", "super_class"
-    sc_lookup = flywire_annotations.set_index(root_col)[sc_col]
+    root_col, type_col = "root_id", "cell_type"
+    group_lookup = flywire_annotations.set_index(root_col)[partner_group_col]
+    out_col = f"partner_{partner_group_col}"
 
     rows = []
     for ftype in flywire_types:
@@ -287,10 +296,10 @@ def fetch_flywire_type_profiles(
         out_partners = conn.loc[conn["pre"].isin(sample_set), ["post", "weight"]].rename(columns={"post": "partner"})
         in_partners = conn.loc[conn["post"].isin(sample_set), ["pre", "weight"]].rename(columns={"pre": "partner"})
         partners = pd.concat([out_partners, in_partners], ignore_index=True)
-        partners["partner_super_class"] = partners["partner"].map(sc_lookup)
-        agg = partners.groupby("partner_super_class")["weight"].sum()
-        for sc, weight in agg.items():
-            if pd.notna(sc):
-                rows.append({"flywireType": ftype, "partner_super_class": sc, "weight": float(weight)})
+        partners[out_col] = partners["partner"].map(group_lookup)
+        agg = partners.groupby(out_col)["weight"].sum()
+        for grp, weight in agg.items():
+            if pd.notna(grp):
+                rows.append({"flywireType": ftype, out_col: grp, "weight": float(weight)})
 
     return pd.DataFrame(rows)

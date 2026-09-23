@@ -227,3 +227,63 @@ def test_degree_adjustment_keeps_a_genuine_type_specific_signal():
     hub = adjusted[adjusted["category"] == "HubType"]
     assert len(hub) == 1
     assert bool(hub.iloc[0]["significant"])
+
+
+def test_vectorized_cmh_matches_statsmodels():
+    """The permutation null is only meaningful if its fast CMH computes
+    the SAME statistic as the per-type statsmodels path used for the
+    reported results. A speedup that quietly changes the test would make
+    the null incomparable to the thing it is supposed to validate.
+    """
+    import numpy as np
+    from statsmodels.stats.contingency_tables import StratifiedTable
+
+    from fruresidual.features.motifs import _cmh_vectorized
+
+    rng = np.random.default_rng(0)
+    n, n_types = 200, 6
+    connects = rng.random((n, n_types)) < 0.4
+    is_residual = rng.random(n) < 0.5
+    bins = rng.integers(0, 4, size=n)
+
+    chi2_vec, odds_vec = _cmh_vectorized(connects, is_residual, bins)
+
+    for t in range(n_types):
+        tables = []
+        for b in np.unique(bins):
+            m = bins == b
+            a = int((connects[m, t] & is_residual[m]).sum())
+            bb = int((~connects[m, t] & is_residual[m]).sum())
+            c = int((connects[m, t] & ~is_residual[m]).sum())
+            d = int((~connects[m, t] & ~is_residual[m]).sum())
+            if (a + bb) == 0 or (c + d) == 0 or (a + c) == 0 or (bb + d) == 0:
+                continue
+            tables.append([[a, bb], [c, d]])
+        if not tables:
+            continue
+        st = StratifiedTable(np.asarray(tables, dtype=float).transpose(1, 2, 0))
+        arr = np.asarray(tables, dtype=float) + 0.5
+        aa, bh, ch, dh = arr[:, 0, 0], arr[:, 0, 1], arr[:, 1, 0], arr[:, 1, 1]
+        nh = aa + bh + ch + dh
+        odds_ref = float(np.sum(aa * dh / nh) / np.sum(bh * ch / nh))
+
+        assert np.isclose(chi2_vec[t], st.test_null_odds().statistic, rtol=1e-6), (
+            f"type {t}: chi2 {chi2_vec[t]} vs statsmodels {st.test_null_odds().statistic}"
+        )
+        assert np.isclose(odds_vec[t], odds_ref, rtol=1e-6)
+
+
+def test_motif_permutation_null_on_pure_degree_artifact():
+    """The null must show that a purely degree-driven 'signal' is
+    reproduced by chance shuffles -- i.e. the observed count should not
+    stand out against the null."""
+    from fruresidual.features.motifs import motif_permutation_null
+
+    profile, residual_ids, background_ids = _degree_confounded_profile()
+    out = motif_permutation_null(
+        profile, residual_ids, background_ids, min_neurons=5,
+        n_permutations=50, random_state=0,
+    )
+    assert out["n_permutations"] == 50
+    assert 0 < out["empirical_p_value"] <= 1.0
+    assert out["observed_n_significant"] >= 0

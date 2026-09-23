@@ -261,6 +261,16 @@ indistinguishable rates (87.8% vs 84.8%, p=0.768) — the residual isn't
 disproportionately made of artifacts, supporting that it reflects real,
 independently-replicable biology.
 
+**Optic-lobe gap: three routes tried, three closed.** Full writeup:
+[docs/optic_lobe_gap.md](docs/optic_lobe_gap.md). The one region the
+cross-check below cannot speak to is the optic lobe (372 of 576 matched
+residual neurons). Single-cell RNA-seq (Özel, and the Fly Cell Atlas via
+`scripts/run_fca_crosscheck.py`) and MAOL's cross-dataset type table
+were each assessed and each fails structurally — 3' sequencing measures
+the wrong *fru* transcript, the atlases do not sample the dimorphic
+optic types, and the unmatched optic neurons have no female cross-match
+to repair. Assessed in hours rather than discovered in weeks.
+
 **Annotation cross-check (biology vs. ascertainment bias): ANSWERED.**
 Run `python scripts/run_annotation_crosscheck.py --source codex --codex-file codex_labels.csv.gz`.
 Full writeup: [docs/annotation_crosscheck_results.md](docs/annotation_crosscheck_results.md).

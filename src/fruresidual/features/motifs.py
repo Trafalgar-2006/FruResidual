@@ -229,6 +229,155 @@ def partner_type_enrichment_degree_adjusted(
     return result.sort_values("p_value", na_position="last").reset_index(drop=True)
 
 
+def _cmh_vectorized(
+    connects: np.ndarray, is_residual: np.ndarray, bins: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Cochran-Mantel-Haenszel across ALL partner types simultaneously.
+
+    `connects` is (n_neurons, n_types) boolean. Returns (chi2, odds_ratio)
+    per type.
+
+    This exists purely for speed, and the speed is what makes the
+    permutation null possible at all: the per-type loop in
+    partner_type_enrichment_degree_adjusted takes ~1 minute on
+    cb_intrinsic's 4,860 types, so 1,000 shuffles would be ~16 hours.
+    Recast as matrix operations over the neuron axis it is ~25ms, because
+    every type shares the same degree bins and residual mask.
+
+    Same statistic as statsmodels' StratifiedTable (continuity-corrected
+    CMH) and the same Haldane-Anscombe +0.5 pooled odds ratio, verified
+    against it in test_vectorized_cmh_matches_statsmodels.
+    """
+    res = is_residual[:, None]
+    num = np.zeros(connects.shape[1])
+    var = np.zeros(connects.shape[1])
+    or_num = np.zeros(connects.shape[1])
+    or_den = np.zeros(connects.shape[1])
+
+    for b in np.unique(bins):
+        m = bins == b
+        cm, rm = connects[m], res[m]
+        a = (cm & rm).sum(axis=0).astype(float)
+        bb = (~cm & rm).sum(axis=0).astype(float)
+        c = (cm & ~rm).sum(axis=0).astype(float)
+        d = (~cm & ~rm).sum(axis=0).astype(float)
+        n = a + bb + c + d
+        r1, r2, c1, c2 = a + bb, c + d, a + c, bb + d
+        # Bins with an empty margin carry no information; zeroing them
+        # out is equivalent to the per-type code skipping the table.
+        ok = (n > 1) & (r1 > 0) & (r2 > 0) & (c1 > 0) & (c2 > 0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            e = np.where(ok, r1 * c1 / n, 0.0)
+            v = np.where(ok, r1 * r2 * c1 * c2 / (n * n * (n - 1)), 0.0)
+        num += np.where(ok, a, 0.0) - e
+        var += v
+        ah, bh, ch, dh = a + 0.5, bb + 0.5, c + 0.5, d + 0.5
+        nh = ah + bh + ch + dh
+        or_num += np.where(ok, ah * dh / nh, 0.0)
+        or_den += np.where(ok, bh * ch / nh, 0.0)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # No continuity correction: statsmodels' test_null_odds() defaults
+        # to correction=False, and the reported results come from that
+        # call. Applying the usual -0.5 here would make the null measure a
+        # slightly different (more conservative) statistic than the thing
+        # it is validating -- caught by test_vectorized_cmh_matches_statsmodels.
+        chi2 = np.where(var > 0, num**2 / var, np.nan)
+        odds = np.where(or_den > 0, or_num / or_den, np.nan)
+    return chi2, odds
+
+
+def motif_permutation_null(
+    partner_profile_long: pd.DataFrame,
+    residual_body_ids: set[int],
+    background_body_ids: set[int],
+    min_neurons: int = 10,
+    alpha: float = 0.05,
+    min_odds_ratio: float = 2.0,
+    n_degree_strata: int = 4,
+    n_permutations: int = 1000,
+    random_state: int = 0,
+) -> dict:
+    """Empirical null for the NUMBER of significant degree-adjusted motifs.
+
+    partner_type_enrichment_degree_adjusted reports BH-corrected
+    p-values, which control the false-discovery rate under assumptions
+    about the test statistics' joint behaviour. Those assumptions are
+    shaky here: partner types are heavily correlated (neurons that touch
+    one type tend to touch related ones), so the effective number of
+    independent tests is far below the nominal count and BH may be
+    optimistic.
+
+    This asks the question directly. Hold the connectivity matrix and the
+    degree bins FIXED and shuffle which neurons carry the residual label,
+    preserving the residual set's size exactly. Each shuffle yields a
+    count of "significant" motifs under identical machinery. The observed
+    count is then read against that distribution.
+
+    Returns the observed count, the null distribution's summary, and an
+    empirical p-value -- plus `expected_false_positives`, which is the
+    null mean and is the number that actually matters for reading the
+    shortlist.
+    """
+    from scipy.stats import chi2 as chi2_dist
+
+    if not residual_body_ids <= background_body_ids:
+        raise ValueError("residual_body_ids must be a subset of background_body_ids")
+
+    filtered = filter_by_min_count(partner_profile_long, min_neurons)
+    body_ids = sorted(background_body_ids)
+    idx = {b: i for i, b in enumerate(body_ids)}
+    types = sorted(filtered["partner_type"].unique())
+    tidx = {t: i for i, t in enumerate(types)}
+
+    connects = np.zeros((len(body_ids), len(types)), dtype=bool)
+    rows = filtered["bodyId"].map(idx).to_numpy()
+    cols = filtered["partner_type"].map(tidx).to_numpy()
+    keep = ~pd.isna(rows)
+    connects[rows[keep].astype(int), cols[keep].astype(int)] = True
+
+    degree = connects.sum(axis=1).astype(float)
+    try:
+        bins = pd.qcut(degree, q=n_degree_strata, labels=False, duplicates="drop")
+    except (ValueError, IndexError):
+        bins = np.zeros(len(degree), dtype=int)
+    bins = np.where(pd.isna(np.asarray(bins)), 0, np.asarray(bins)).astype(int)
+
+    def _n_significant(mask: np.ndarray) -> int:
+        chi2, odds = _cmh_vectorized(connects, mask, bins)
+        ok = np.isfinite(chi2) & np.isfinite(odds)
+        if not ok.any():
+            return 0
+        p = chi2_dist.sf(chi2[ok], df=1)
+        p_adj = multipletests(p, alpha=alpha, method="fdr_bh")[1]
+        return int(np.sum((p_adj < alpha) & (odds[ok] >= min_odds_ratio)))
+
+    observed_mask = np.array([b in residual_body_ids for b in body_ids])
+    observed = _n_significant(observed_mask)
+
+    rng = np.random.default_rng(random_state)
+    n_res = int(observed_mask.sum())
+    null = np.empty(n_permutations, dtype=float)
+    for i in range(n_permutations):
+        shuffled = np.zeros(len(body_ids), dtype=bool)
+        shuffled[rng.choice(len(body_ids), size=n_res, replace=False)] = True
+        null[i] = _n_significant(shuffled)
+
+    n_ge = int(np.sum(null >= observed))
+    return {
+        "n_types_tested": len(types),
+        "observed_n_significant": observed,
+        "n_permutations": n_permutations,
+        "expected_false_positives": float(np.mean(null)),
+        "null_std": float(np.std(null)),
+        "null_p95": float(np.percentile(null, 95)),
+        "null_max": float(np.max(null)),
+        "n_null_ge_observed": n_ge,
+        "empirical_p_value": float((n_ge + 1) / (n_permutations + 1)),
+        "excess_over_null": observed - float(np.mean(null)),
+    }
+
+
 def partner_type_enrichment(
     partner_profile_long: pd.DataFrame,
     residual_body_ids: set[int],

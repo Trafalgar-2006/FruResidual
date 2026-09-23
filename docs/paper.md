@@ -135,11 +135,13 @@ Section 4.
   source's labels turn out to be nested inside MaleCNS's — which is what
   happened on the first attempt, and is why the result reported is the
   second one.
-- **Empirical nulls.** Phase 3's cluster result additionally carries a
-  1,000-iteration label-permutation null (`label_permutation_null`),
-  holding the graph and its clustering fixed, because the parametric
-  p-value assumes an independence between clusters and labels that does
-  not hold here.
+- **Empirical nulls.** Both Phase 3 results carry 1,000-iteration
+  label-permutation nulls — `label_permutation_null` for the cluster
+  (graph and clustering held fixed) and `motif_permutation_null` for the
+  motif counts (connectivity matrix and degree bins held fixed).
+  Parametric p-values assume independences that do not hold here:
+  clusters derive from the same data they are tested against, and
+  partner types are heavily correlated with each other.
 
 ## 4. Results
 
@@ -262,6 +264,16 @@ odds ratios 6–23), plus a Leiden cluster split significant at 3 of 5
 swept resolutions concentrating 60.7% of residual neurons in one cluster
 against 33% of background (odds ratio 2.68, p_adj=0.012), with no
 detected degree confound (Mann-Whitney p=0.855).
+
+The motif tables survive an empirical null too, and by a wide margin.
+Shuffling the residual labels over the fixed connectivity matrix 1,000
+times per stratum gives an expected false-positive count **below one**
+in every stratum — 0.0 for `ascending_neuron` against 25 observed, 0.7
+for `cb_intrinsic` against 1,429, 0.1 for `vnc_intrinsic` against 44
+(empirical p ≤ 0.002 throughout). Whatever else is arguable about these
+motifs, "this is just multiple testing" is not. (`vnc_intrinsic`'s null
+is heavy-tailed — mean 0.1 but maximum 54 — so its 44 motifs deserve
+less weight than the p-value alone suggests.)
 
 That cluster result also survives an **empirical null**: holding the
 graph and its clustering fixed and shuffling the residual labels 1,000
@@ -403,6 +415,18 @@ Collected from each phase's own writeup, not softened:
   being independent evidence that structure rivals the switch. It is
   still a real negative result about *incremental* predictive value; it
   is not proof that *fru*/*dsx* is uninformative in isolation.
+- **The optic lobe has no independent evidence, and three routes to it
+  are closed.** Phase 6 covers the central brain and descending neurons;
+  it is silent about the optic lobe, where 372 of 576 matched residual
+  neurons sit. Three attempts to fill that are documented in
+  `docs/optic_lobe_gap.md` and all failed structurally rather than for
+  want of effort: 3′ scRNA-seq measures the wrong *fru* transcript
+  (Özel and Fly Cell Atlas both); the atlases do not sample the
+  connectome's dimorphic optic types (FCA's 36 joinable types overlap
+  the dimorphic population **zero** times); and the unmatched optic
+  neurons have no female cross-match for a type table to repair. A
+  useful by-product: FCA independently reproduces the isoform problem,
+  with *fru* detected in 42.9% of optic cells against *dsx* at 0.8%.
 - **The GNN result is not usable as evidence.** It is too seed-unstable
   on this population (R² −2.052 to +0.416 across 15 CV folds) to support
   any claim about graph structure carrying signal beyond per-neuron

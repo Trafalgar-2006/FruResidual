@@ -131,6 +131,53 @@ Three genuinely different outcomes:
   broad population-level connectivity difference than a specific circuit
   motif, and should be described that way.
 
+### Empirical null for the motif counts (added 2026-09-23)
+
+BH controls the false-discovery rate under assumptions about how the
+test statistics co-vary. Those assumptions are shaky here: partner types
+are heavily correlated — neurons that touch one type tend to touch
+related ones — so the effective number of independent tests is well
+below the nominal count, and BH could be optimistic by an unknown
+margin. The cluster result got an empirical null; the much larger motif
+table did not, which left the biggest result carrying the weakest
+statistical backing.
+
+`motif_permutation_null` fixes that by asking directly: hold the
+connectivity matrix and the degree bins fixed, shuffle which neurons
+carry the residual label (preserving the residual set's size), and count
+how many "significant" motifs the identical machinery produces from
+noise. 1,000 shuffles per stratum.
+
+| stratum | observed | expected by chance | null 95th pct | null max | empirical p |
+|---|---|---|---|---|---|
+| ascending_neuron | **25** | 0.0 | 0 | 2 | 0.001 |
+| cb_intrinsic | **1,429** | 0.7 | 4 | 24 | 0.001 |
+| vnc_intrinsic | **44** | 0.1 | 0 | 54 | 0.002 |
+
+The motif tables are not BH artifacts. Across all three strata the
+expected number of false positives is **under one**, against observed
+counts of 25 to 1,429. Whatever else is arguable about these results,
+"this is just multiple testing" is not.
+
+One honesty note on `vnc_intrinsic`: its null mean is 0.1 but its
+maximum is 54, above the observed 44. The null is heavy-tailed there —
+n=66 with a 33/33 split means an unlucky shuffle can occasionally
+produce a large count. The empirical p of 0.002 already accounts for
+this (2 of 1,000 shuffles reached 44), but the stratum is small enough
+that its 44 motifs deserve less weight than the p-value alone suggests.
+
+Making this feasible required rewriting CMH to run over all partner
+types at once as matrix operations. The per-type statsmodels loop takes
+about a minute on cb_intrinsic's 4,860 types, so 1,000 shuffles would
+have been ~16 hours; vectorized it is ~25ms, and the whole Phase 3 run
+including 3,000 permutations finishes in under six minutes. The
+vectorized statistic is pinned equal to statsmodels'
+(`test_vectorized_cmh_matches_statsmodels`) — which immediately caught
+that statsmodels' `test_null_odds()` defaults to *no* continuity
+correction, so an initially-corrected implementation would have been
+measuring a slightly different, more conservative test than the one
+being validated.
+
 ## Results by stratum
 
 ### ascending_neuron — the cleanest result (no detected confound)
