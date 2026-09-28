@@ -29,9 +29,16 @@ Five independent lines of evidence, each gating the next:
 2. **Structure predicts it about as well as the genetic switch does**
    (Phase 2) — a gradient-boosting model gets R²=0.219 from connectivity
    structure alone; adding *fru*/*dsx* as a feature moves that to
-   R²=0.216, within noise. (A GNN on the connectome subgraph was tried
-   and is reported as a negative result: under 5-fold CV over the graph it
-   does not beat that baseline.)
+   R²=0.216, within noise. At a finer partner vocabulary (5,338 cell
+   types rather than 10 superclass buckets) the same model reaches
+   R²=0.409 without *fru*/*dsx*, and the target separates cases from
+   controls far better — but there *fru*/*dsx* **does** add value to a
+   linear model in every fold, so the honest claim is that it adds no
+   *incremental* value to a model already exploiting structural
+   interactions. See [docs/phase2_celltype_results.md](docs/phase2_celltype_results.md).
+   (A GNN on the connectome subgraph was tried and is reported as a
+   negative result: under 5-fold CV over the graph it does not beat that
+   baseline.)
 3. **One clean circuit-level candidate** (Phase 3) — `ascending_neuron`
    yields a degree-adjusted, resolution-robust connectivity cluster
    concentrating 60.7% of its residual neurons (odds ratio 2.68,

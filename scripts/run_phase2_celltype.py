@@ -45,8 +45,16 @@ from fruresidual.features.rewiring import select_case_control_population
 from fruresidual.models.baselines import evaluate_baselines
 
 RANDOM_STATE = 0
-SAMPLES_PER_TYPE = 15
-CHECKPOINT_EVERY = 5
+# Fewer samples per type than Phase 2's 15. At cell-type resolution each
+# query returns far more partner rows, and the live FlyWire connection
+# has hung mid-fetch twice on this project; a smaller per-type budget
+# both speeds the pass and shortens the window for a hang.
+SAMPLES_PER_TYPE = 8
+# One type per checkpoint, not five. A hang loses at most that one type's
+# work, and the printed type name says exactly where it stopped -- an
+# earlier 5-type chunking gave no visibility and the fetch stalled
+# silently on an unknown type for ten minutes.
+CHECKPOINT_EVERY = 1
 # A partner type has to be seen on enough neurons to carry information;
 # below this the profile vector is mostly noise from single connections.
 MIN_PARTNER_NEURONS = 5
@@ -109,18 +117,28 @@ def main() -> None:
     else:
         fw_long = pd.DataFrame(columns=["flywireType", "partner_cell_type", "weight"])
         missing = distinct_types
+    failed: list[str] = []
     if missing:
         print(f"fetching FlyWire partner-CELL-TYPE profiles for {len(missing)} types "
-              f"(live queries, checkpointed every {CHECKPOINT_EVERY})...")
+              f"(live queries, one checkpoint per type)...", flush=True)
         for i in range(0, len(missing), CHECKPOINT_EVERY):
             chunk = missing[i : i + CHECKPOINT_EVERY]
-            new = fetch_flywire_type_profiles(
-                fw, chunk, samples_per_type=SAMPLES_PER_TYPE,
-                partner_group_col="cell_type",
-            )
+            print(f"  [{i+1}/{len(missing)}] {chunk}", flush=True)
+            try:
+                new = fetch_flywire_type_profiles(
+                    fw, chunk, samples_per_type=SAMPLES_PER_TYPE,
+                    partner_group_col="cell_type",
+                )
+            except Exception as e:
+                # One flaky type must not abort a fetch this long. Record
+                # it and move on; a rerun retries only what is missing.
+                print(f"      FAILED ({type(e).__name__}: {e}) -- skipping", flush=True)
+                failed.extend(chunk)
+                continue
             fw_long = pd.concat([fw_long, new], ignore_index=True)
             fw_long.to_feather(fw_path)
-            print(f"  checkpointed {min(i + CHECKPOINT_EVERY, len(missing))}/{len(missing)}")
+        if failed:
+            print(f"  {len(failed)} type(s) failed and were skipped: {failed[:10]}")
     print(f"FlyWire-side profiles: {len(fw_long)} rows, "
           f"{fw_long['partner_cell_type'].nunique()} distinct partner types")
 

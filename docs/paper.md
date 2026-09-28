@@ -81,7 +81,7 @@ against a second independent dataset.
 | MaleCNS v1.0 | primary: 165,122 traced neurons, per-neuron `dimorphism` and `fruDsx` annotations | neuPrint (targeted queries) + public bulk feather files |
 | FlyWire/FAFB | female brain-only comparison, 139,248-neuron curated annotation table | `flyconnectome/flywire_annotations` (curated, preferred over Codex) + CAVEclient live connectivity |
 | BANC | second, independent female whole-CNS reconstruction (188,508 neurons), used for Phase 4 replication | public bulk metadata table (no auth); live connectivity blocked by an account-level CAVE permission gap — see [Section 4.5](#45-independent-replication-phase-4) |
-| FlyWire Codex | independent *fru*/*dsx* annotation (community labels citing the light-microscopy literature), used for the §4.6 cross-check | `labels.csv.gz` from Codex → Download Data, FAFB v783 |
+| FlyWire Codex | independent *fru*/*dsx* annotation (community labels citing the light-microscopy literature), used for the §4.7 cross-check | `labels.csv.gz` from Codex → Download Data, FAFB v783 |
 
 All three are accessed exactly as documented in `docs/project_plan.md`
 section (b); per-phase access details and caveats are in
@@ -129,7 +129,7 @@ Section 4.
   split, via recall, precision, and a Fisher's exact test on whether
   residual neurons are confirmed dimorphic at a different rate than
   explained neurons.
-- **Annotation cross-check (§4.6).** The residual re-tested against a
+- **Annotation cross-check (§4.7).** The residual re-tested against a
   second *fru*/*dsx* annotation, with an explicit
   `independence_diagnostic` that refuses the comparison if the second
   source's labels turn out to be nested inside MaleCNS's — which is what
@@ -202,6 +202,17 @@ being explained by regional/structural identity rather than requiring
 the genetic label at all. **This ablation — the actual Phase 2
 deliverable — rests entirely on the deterministic sklearn baselines and
 is unaffected by the GNN result below.**
+
+**It is, however, resolution-dependent, and the dependence is itself a
+result** (§4.6). Rebuilt over 5,338 partner *cell types* instead of 10
+superclass buckets, the same target separates cases from controls far
+better (effect size +0.659 vs +0.259) — and there *fru*/*dsx* does add
+predictive value to the linear model, consistently across all five folds
+(ridge 0.168 → 0.243). It still adds nothing distinguishable to
+gradient boosting (0.409 → 0.439, two of five folds worse). So the
+defensible claim is narrower than "the genetic label adds nothing": it
+adds no **incremental** value to a model already able to exploit
+structural interactions.
 
 The GNN does **not** beat those baselines. Under 5-fold cross-validation
 over the graph's nodes repeated across 3 seeds (15 fits, the same
@@ -330,7 +341,49 @@ is BANC-unassessed rather than a real disagreement (recall moves 87.2%→
 87.8% restricted to assessed-only neurons), and all 148 sit on
 BANC-proofread reconstructions.
 
-### 4.6 Is the residual just unannotated? Mostly not
+### 4.6 The coarse metric was hiding most of the signal
+
+Everything in §4.3 rests on a wiring-difference target computed over 10
+superclass buckets — coarse enough to miss "same broad partner category,
+entirely different specific partners", the most obvious form of
+rewiring. Rebuilding it over partner **cell types**
+(`scripts/run_phase2_celltype.py`, full detail in
+`docs/phase2_celltype_results.md`) required bridging two naming systems
+via MaleCNS's `flywireType` field (86.4% of partner rows map) and then
+restricting **both** sides to the 5,338-type intersection — the same
+symmetry whose absence made the original target ~76% artifact.
+
+| | cases | controls | effect size |
+|---|---|---|---|
+| coarse (10 buckets) | 0.0034 | 0.0032 | +0.259 |
+| **fine (5,338 types)** | **0.2605** | **0.1115** | **+0.659** |
+
+The finer target is a substantially better measurement of the same
+quantity (Mann-Whitney p=3.7e-92). The coarse one was not wrong, only
+blunt.
+
+The ablation then behaves differently at the two resolutions, tested
+paired across folds since both models see identical splits:
+
+| resolution | model | without | with | folds improving |
+|---|---|---|---|---|
+| coarse | ridge | 0.090 | 0.092 | 3/5 |
+| coarse | gradient boosting | 0.219 | 0.216 | 2/5 |
+| **fine** | **ridge** | **0.168** | **0.243** | **5/5** |
+| fine | gradient boosting | 0.409 | 0.439 | 3/5 |
+
+Ridge improves in every fold at fine resolution (+0.060 to +0.094;
+Wilcoxon p=0.062, which at five folds *is* the attainable floor and
+means the direction was unanimous). Gradient boosting does not — two
+folds get worse. The reading consistent with Phase 0/1 is that
+*fru*/*dsx* carries information a linear model cannot otherwise
+reconstruct, while a tree recovers it from interactions among
+superclass, connectivity and neurotransmitter.
+
+Structure still carries most of the signal: gradient boosting reaches
+R²=0.409 having never seen *fru*/*dsx*.
+
+### 4.7 Is the residual just unannotated? Mostly not
 
 Every result above rests on MaleCNS's own *fru*/*dsx* annotation, so all
 of them are vulnerable to one objection: the residual might simply be
@@ -391,7 +444,7 @@ Collected from each phase's own writeup, not softened:
 
   A direct test now exists and **rules out the strong version of the
   ascertainment explanation** (`docs/annotation_crosscheck_results.md`,
-  §4.6). Two attempts were needed. The first, against FlyWire's curated
+  §4.7). Two attempts were needed. The first, against FlyWire's curated
   `fru_dsx` column, produced an apparently overwhelming result (0% of
   182 residual vs 80.2% of explained, p=6.7e-67) that had to be thrown
   out: that column never fires where MaleCNS didn't, so
@@ -489,8 +542,19 @@ python scripts/run_phase1.py
 python scripts/run_phase2_data.py && python scripts/run_phase2.py
 python scripts/run_phase3_data.py && python scripts/run_phase3.py
 python scripts/run_phase4.py
-python scripts/run_annotation_crosscheck.py                       # curated source (inconclusive by design)
-python scripts/run_annotation_crosscheck.py --source codex        --codex-file codex_labels.csv.gz                           # the §4.6 result
+
+# §4.6 -- same target at cell-type resolution (live FlyWire fetch, checkpointed)
+python scripts/run_phase2_celltype.py
+
+# §4.7 -- annotation cross-check. The curated source is inconclusive by
+# design (its labels are nested inside MaleCNS's); Codex is the one that
+# answers the question, and needs codex_labels.csv.gz fetched by hand.
+python scripts/run_annotation_crosscheck.py
+python scripts/run_annotation_crosscheck.py --source codex --codex-file codex_labels.csv.gz
+
+# optic-lobe assessment (closed route, kept for the record)
+python scripts/run_fca_crosscheck.py
+
 python scripts/make_summary_figure.py
 python -m pytest && ruff check .
 ```
