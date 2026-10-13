@@ -82,6 +82,8 @@ def simulate(
     silenced_idx: np.ndarray | None = None,
     device: str | None = None,
     record_every: int = 1,
+    track_groups: dict[str, np.ndarray] | None = None,
+    bin_ms: float = 5.0,
 ) -> dict:
     """Run the network with `stim_idx` driven at params.stim_rate_hz.
 
@@ -118,6 +120,16 @@ def simulate(
     rate_trace: list[float] = []
     gen = torch.Generator(device=device).manual_seed(0)
 
+    # Per-group spike counts in time bins, so the cascade can be watched
+    # propagating rather than only summarised at the end.
+    tracks: dict[str, list[float]] = {}
+    bin_steps = max(1, int(round(bin_ms / p.dt)))
+    if track_groups:
+        g_idx = {k: torch.from_numpy(np.asarray(v, dtype=np.int64)).to(device)
+                 for k, v in track_groups.items() if len(v)}
+        g_acc = {k: 0 for k in g_idx}
+        tracks = {k: [] for k in g_idx}
+
     for t in range(steps):
         # Leak toward rest.
         v += decay * (p.v_rest - v)
@@ -143,10 +155,21 @@ def simulate(
         if record_every and t % record_every == 0:
             rate_trace.append(float(spikes.sum()) / n * 1000.0 / p.dt)
 
+        if track_groups:
+            for k, gidx in g_idx.items():
+                g_acc[k] += int(spikes[gidx].sum())
+            if (t + 1) % bin_steps == 0:
+                window_s = bin_steps * p.dt / 1000.0
+                for k, gidx in g_idx.items():
+                    tracks[k].append(g_acc[k] / len(gidx) / window_s)
+                    g_acc[k] = 0
+
     return {
         "spike_counts": counts.cpu().numpy(),
         "rates_hz": counts.cpu().numpy() / (duration_ms / 1000.0),
         "rate_trace_hz": np.array(rate_trace, dtype=np.float32),
+        "group_traces_hz": {k: np.array(v, dtype=np.float32) for k, v in tracks.items()},
+        "bin_ms": bin_ms,
         "duration_ms": duration_ms,
         "device": device,
         "params": p,
