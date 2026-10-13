@@ -9,7 +9,7 @@ Status:
   author, Berg et al. *Cell* 2026), from d.mohithakshay@gmail.com.
   Awaiting reply.
 - **BANC (E7): SENT 2026-09-20** to Wei-Chung Allen Lee (Lee Lab,
-  Harvard), from d.mohithakshay@gmail.com, including CAVE user ID REDACTED
+  Harvard), from d.mohithakshay@gmail.com, including the CAVE user ID
   so the grant can be applied directly. Awaiting reply.
 
 Looking up your own CAVE identity again, if ever needed:
@@ -103,8 +103,8 @@ rather than emailing.
 > CAVE account.
 >
 > **Account email:** d.mohithakshay@gmail.com
-> **CAVE user ID:** REDACTED (account name: Mohith Akshay Duggirala,
-> created 2026-09-17)
+> **CAVE user ID:** `<redacted in the public repo>` (account name:
+> Mohith Akshay Duggirala)
 > **Current status:** my token authenticates against the BANC datastack
 > but returns `403: Missing permission: view for dataset BANC`. The same
 > token works for FlyWire, so I believe this is purely the per-dataset
