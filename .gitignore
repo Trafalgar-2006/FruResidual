@@ -1,0 +1,34 @@
+# Secrets — tokens live here, never in git
+.env
+
+# Data lives outside OneDrive (C:/CourtshipData) because OneDrive throttles
+# large binary writes to a crawl. Nothing data-shaped belongs in the repo.
+data/
+*.feather
+*.h5
+*.hdf5
+*.npz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.ipynb_checkpoints/
+
+# Conda / venv
+.venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Claude Code session state
+.claude/
