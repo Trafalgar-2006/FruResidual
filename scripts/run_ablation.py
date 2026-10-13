@@ -31,9 +31,13 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.ablation import degree_matched_sample, empirical_p, out_synapses  # noqa: E402
-from courtship.circuit import resolve_groups, to_indices  # noqa: E402
-from courtship.lif import LIFParams, group_rate, simulate  # noqa: E402
+from courtship.ablation import (
+    degree_matched_sample,
+    empirical_p,
+    out_synapses,
+)
+from courtship.circuit import resolve_groups, to_indices
+from courtship.lif import LIFParams, group_rate, simulate
 
 P = Path("C:/CourtshipData/processed")
 DURATION_MS = 200.0
@@ -128,7 +132,7 @@ def main() -> None:
         p = empirical_p(drop, nulls)
 
         results.append({
-            "condition": label, "n_silenced": int(len(target)),
+            "condition": label, "n_silenced": len(target),
             "wing_hz": obs, "drop_hz": drop, "pct_drop": pct,
             "null_drop_mean": float(nulls.mean()), "null_drop_std": float(nulls.std()),
             "p_empirical": p, "n_null": args.n_null,

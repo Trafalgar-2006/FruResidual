@@ -27,9 +27,13 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.ablation import degree_matched_sample, empirical_p, out_synapses  # noqa: E402
-from courtship.circuit import resolve_groups, to_indices  # noqa: E402
-from courtship.lif import LIFParams, group_rate, simulate  # noqa: E402
+from courtship.ablation import (
+    degree_matched_sample,
+    empirical_p,
+    out_synapses,
+)
+from courtship.circuit import resolve_groups, to_indices
+from courtship.lif import LIFParams, group_rate, simulate
 
 P = Path("C:/CourtshipData/processed")
 DURATION_MS = 200.0
@@ -71,7 +75,7 @@ def main() -> None:
         nulls = np.array([baseline - wing_rate(degree_matched_sample(target, out_syn, rng))
                           for _ in range(args.n_null)])
         p = empirical_p(drop, nulls)
-        rows.append({"superclass": sc, "n": int(len(target)),
+        rows.append({"superclass": sc, "n": len(target),
                      "wing_hz": obs, "pct_drop": 100 * drop / baseline,
                      "pct_drop_per_neuron": 100 * drop / baseline / len(target),
                      "null_pct_drop_mean": 100 * float(nulls.mean()) / baseline,

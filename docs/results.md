@@ -64,6 +64,88 @@ The headline comparison:
 Neurons the genetic switch cannot account for are doing non-trivial work
 in the circuit the genetic switch is supposed to build.
 
+## The residual pulls in both directions
+
+Breaking the residual down by superclass (same protocol, one ablation per
+class) shows the aggregate numbers above were hiding a cancellation:
+
+| superclass | n | song drop | per neuron | null | p |
+|---|---|---|---|---|---|
+| `ascending_neuron` | 84 | **+13.6%** | **+0.162%** | −3.8% | **0.0392** |
+| `descending_neuron` | 89 | **+7.2%** | +0.081% | −2.6% | **0.0392** |
+| `cb_motor` | 2 | 0.0% | 0.0% | 0.0% | 1.0000 |
+| `ol_intrinsic` | 490 | 0.0% | 0.0% | −2.5% | 0.3529 |
+| `visual_centrifugal` | 2 | 0.0% | 0.0% | −0.9% | 0.8627 |
+| `sensory_descending` | 6 | 0.0% | 0.0% | −0.1% | 0.9412 |
+| `vnc_intrinsic` | 33 | −4.5% | −0.136% | −2.8% | 0.6863 |
+| `cb_intrinsic` | 209 | **−23.5%** | −0.113% | −4.0% | 1.0000 |
+
+**Only two classes are significant, and they are the same two:**
+`ascending_neuron` and `descending_neuron` — the classes that connect
+brain to nerve cord. Nothing else in the residual moves the song.
+
+Silencing the 209 residual `cb_intrinsic` neurons makes the song **23.5%
+louder**: they are net inhibitory onto the pathway, so removing them
+disinhibits it.
+
+> **Caveat on that p=1.0000.** The empirical test is one-sided for
+> *decreases* — it counts how often a matched null drops the song at
+> least as much. A negative drop therefore scores p=1.0 **by
+> construction**, not because the increase was tested and found wanting.
+> The magnitude (−23.5% against a −4.0% null) suggests a real
+> disinhibition, but assessing it properly needs the opposite tail. It is
+> left untested rather than quietly claimed.
+
+This explains the earlier puzzle: "residual: central" bundles
+`cb_intrinsic` + `descending` + `ascending` together and came out at only
+6.2%, which reads as a weak effect. It is not weak — it is an excitatory
+contribution and an inhibitory one partially cancelling. Reported as an
+aggregate alone, that would have been misleading.
+
+The largest effect, both in total (13.6%) and per neuron (0.162%, twice
+the descending rate), is `ascending_neuron` — the class carrying nerve-cord
+→ brain feedback. **Those neurons do not exist in a brain-only
+connectome.** The single most influential part of the residual is in the
+half of the nervous system every published connectome simulation leaves
+out.
+
+## Does amputating the nerve cord change the brain? No — negative result
+
+The hypothesis was that brain-only connectome models (every published
+one) are missing something real, because they delete the 1,846 ascending
+neurons carrying nerve-cord → brain feedback. MaleCNS can test it
+directly: run the same stimulus on the full network and on a brain-only
+version of itself.
+
+| condition | pIP10 | dPR1 | TN1 | wing | brain mean |
+|---|---|---|---|---|---|
+| whole CNS | 200.0 | 200.0 | 47.3 | 13.8 | 0.467 |
+| brain only (22,186 silenced) | 212.5 | 0.0 | 0.0 | 0.0 | 0.473 |
+| ascending only (1,846 silenced) | 210.0 | 222.5 | 35.7 | 11.6 | 0.469 |
+
+At face value this looked like a finding: pIP10, the brain's own command
+output, fires **6.2% faster** without the nerve cord, and silencing just
+the ascending neurons reproduces most of it. **It does not survive its
+control.**
+
+```
+ascending silenced:   pIP10  +10.0 Hz vs whole CNS
+degree-matched null:        -14.7 +/- 35.4 Hz
+two-sided empirical p = 0.4118
+```
+
+Silencing *any* degree-matched set of 1,846 neurons swings pIP10 by tens
+of Hz. A +10 Hz shift is deep inside that noise. **For this readout, the
+brain-only abstraction is defensible** — removing the nerve cord destroys
+the output (dPR1, TN1 and wing motor all go to zero, which is trivially
+true since those cells are gone) but does not measurably change the
+brain's own command dynamics.
+
+This is reported because it was the motivating hypothesis for using
+MaleCNS at all, and it failed. The case for MaleCNS now rests on the
+ablation result above — where the two significant residual classes are
+`ascending_neuron` and `descending_neuron` — not on this.
+
 ## What this does not show
 
 - **Not per-neuron dominance.** 7.2% over 89 neurons is 0.08% each;

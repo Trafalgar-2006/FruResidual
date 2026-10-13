@@ -22,11 +22,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")  # noqa: E402
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-import numpy as np  # noqa: E402
-import scipy.sparse as sp  # noqa: E402
-import torch  # noqa: E402
+import numpy as np
+import scipy.sparse as sp
+import torch
 
 
 @dataclass(frozen=True)
@@ -96,7 +96,7 @@ def simulate(
     p = params or LIFParams()
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     n = adj.shape[0]
-    steps = int(round(duration_ms / p.dt))
+    steps = round(duration_ms / p.dt)
 
     w_t = to_torch_transposed(adj, device)
     v = torch.full((n,), p.v_rest, dtype=torch.float32, device=device)
@@ -123,7 +123,7 @@ def simulate(
     # Per-group spike counts in time bins, so the cascade can be watched
     # propagating rather than only summarised at the end.
     tracks: dict[str, list[float]] = {}
-    bin_steps = max(1, int(round(bin_ms / p.dt)))
+    bin_steps = max(1, round(bin_ms / p.dt))
     if track_groups:
         g_idx = {k: torch.from_numpy(np.asarray(v, dtype=np.int64)).to(device)
                  for k, v in track_groups.items() if len(v)}

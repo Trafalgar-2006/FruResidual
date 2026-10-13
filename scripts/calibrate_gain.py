@@ -26,8 +26,8 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.circuit import resolve_groups, to_indices  # noqa: E402
-from courtship.lif import LIFParams, group_rate, simulate  # noqa: E402
+from courtship.circuit import resolve_groups, to_indices
+from courtship.lif import LIFParams, group_rate, simulate
 
 P = Path("C:/CourtshipData/processed")
 GAINS = (0.005, 0.01, 0.02, 0.03, 0.05, 0.275)

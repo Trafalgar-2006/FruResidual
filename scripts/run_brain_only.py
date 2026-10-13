@@ -35,11 +35,13 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.circuit import resolve_groups, to_indices  # noqa: E402
-from courtship.lif import LIFParams, group_rate, simulate  # noqa: E402
+from courtship.ablation import degree_matched_sample, out_synapses
+from courtship.circuit import resolve_groups, to_indices
+from courtship.lif import LIFParams, group_rate, simulate
 
 P = Path("C:/CourtshipData/processed")
 DURATION_MS = 200.0
+N_NULL = 50
 # Classes that live in the ventral nerve cord. Descending neurons are kept:
 # their somas are in the brain and FlyWire contains them (truncated at the
 # neck), which is exactly the boundary a brain-only reconstruction draws.
@@ -96,15 +98,40 @@ def main() -> None:
     print("\n=== brain activity, with and without the nerve cord ===")
     print(df.to_string(index=False))
 
+    # Without a null, "we removed 1,846 neurons and pIP10 changed" is not a
+    # claim about ascending FEEDBACK -- it could be any 1,846 neurons. Compare
+    # against degree-matched random sets drawn from the rest of the network.
+    print(f"\nnull: {N_NULL} degree-matched random sets of {len(ascending):,} neurons...")
+    out_syn = out_synapses(adj)
+    rng = np.random.default_rng(0)
+    null_pip10 = []
+    for _ in range(N_NULL):
+        ctrl = degree_matched_sample(ascending, out_syn, rng)
+        r = simulate(adj, gi["pC1"], duration_ms=DURATION_MS, params=params,
+                     silenced_idx=ctrl, record_every=0)
+        null_pip10.append(group_rate(r["rates_hz"], gi["pIP10"]))
+    null_pip10 = np.array(null_pip10)
+
+    obs_delta = row_asc["pIP10_hz"] - row_full["pIP10_hz"]
+    null_delta = null_pip10 - row_full["pIP10_hz"]
+    # Two-sided: the question is whether pIP10 CHANGES, not which way.
+    p_asc = (int((np.abs(null_delta) >= abs(obs_delta)).sum()) + 1) / (N_NULL + 1)
+    print(f"  ascending silenced: pIP10 {obs_delta:+.1f} Hz vs whole CNS")
+    print(f"  degree-matched null: {null_delta.mean():+.1f} +/- {null_delta.std():.1f} Hz")
+    print(f"  two-sided empirical p = {p_asc:.4f}")
+
     d_full = row_full["pIP10_hz"]
     d_brain = row_brain["pIP10_hz"]
-    print(f"\npIP10 (the song command's output channel):")
+    print("\npIP10 (the song command's output channel):")
     print(f"  whole CNS   {d_full:.1f} Hz")
     print(f"  brain only  {d_brain:.1f} Hz   "
           f"({100*(d_brain-d_full)/d_full:+.1f}% vs whole CNS)" if d_full else "")
 
-    out = {"duration_ms": DURATION_MS, "synapse_mv": params.synapse_mv,
-           "n_vnc_silenced": int(len(vnc_idx)), "n_ascending": int(len(ascending)),
+    out = {"ascending_null_pIP10_hz": null_pip10.tolist(),
+           "ascending_obs_delta_hz": float(obs_delta),
+           "ascending_p_two_sided": float(p_asc),
+           "duration_ms": DURATION_MS, "synapse_mv": params.synapse_mv,
+           "n_vnc_silenced": len(vnc_idx), "n_ascending": len(ascending),
            "conditions": rows,
            "pIP10_trace_whole_cns": r_full["group_traces_hz"]["pIP10"].tolist(),
            "pIP10_trace_brain_only": r_brain["group_traces_hz"]["pIP10"].tolist(),

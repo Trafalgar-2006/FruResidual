@@ -14,14 +14,14 @@ import numpy as np
 import scipy.sparse as sp
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-from fruresidual.config import load_config  # noqa: E402
-from fruresidual.features.fru_dsx_join import load_male_cns_annotations  # noqa: E402
+import matplotlib.pyplot as plt
+from fruresidual.config import load_config
+from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.circuit import resolve_groups, to_indices  # noqa: E402
-from courtship.lif import LIFParams, simulate  # noqa: E402
+from courtship.circuit import resolve_groups, to_indices
+from courtship.lif import LIFParams, simulate
 
 P = Path("C:/CourtshipData/processed")
 FIG = Path(__file__).resolve().parents[1] / "reports" / "figures"

@@ -42,8 +42,23 @@ responds to size-matched control populations. Turning the gain up gives a
 louder signal and a worse experiment: at 0.275 the readout can no longer
 tell courtship from noise at all.
 
+## Headline
+
+Silencing **two neurons** (pIP10) halves the song. Silencing **490
+optic-lobe residual neurons changes it by exactly nothing** — the method
+is not "remove neurons, output falls".
+
+The 89 *fru*/*dsx*-**unexplained** descending neurons drop the song
+**7.2%**; the 14 **explained** ones, with the pIP10 bottleneck set aside,
+drop it **2.3%**. Neurons the genetic switch cannot account for are doing
+real work in the circuit the switch is supposed to build.
+
+The motivating hypothesis for using a whole-CNS connectome — that
+brain-only models miss nerve-cord feedback — **failed its own control**
+(p=0.41) and is reported as a negative result.
+
 Full detail, including what this model cannot support, is in
-[docs/methods.md](docs/methods.md).
+[docs/methods.md](docs/methods.md) and [docs/results.md](docs/results.md).
 
 ## Status
 
@@ -52,8 +67,9 @@ Full detail, including what this model cannot support, is in
 | connectome built + verified | done |
 | circuit located + validated | done |
 | simulator calibrated | done |
-| ablation experiment | running |
-| brain-only vs whole-CNS | written, not yet run |
+| ablation experiment | done — see [docs/results.md](docs/results.md) |
+| residual breakdown by class | done |
+| brain-only vs whole-CNS | done — **negative**, hypothesis failed its control |
 | female (FlyWire) comparison | **blocked** — Zenodo 504 |
 
 ## Relationship to FruResidual
