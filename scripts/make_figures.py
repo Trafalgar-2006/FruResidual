@@ -34,7 +34,10 @@ LABELS = {"pC1": "pC1 (command)", "pIP10": "pIP10 (descending)",
 def cascade_panel(ax, adj, gi, silenced, title):
     r = simulate(adj, gi["pC1"], duration_ms=200.0, params=LIFParams(),
                  silenced_idx=silenced, record_every=0,
-                 track_groups={k: gi[k] for k in STAGES if k in gi}, bin_ms=5.0)
+                 # 10 ms bins: pIP10 and dPR1 are 2 neurons each, so at 5 ms
+                 # their rate can only be 0, 200 or 400 Hz and the trace is
+                 # mostly quantisation artefact.
+                 track_groups={k: gi[k] for k in STAGES if k in gi}, bin_ms=10.0)
     tr = r["group_traces_hz"]
     t = np.arange(len(next(iter(tr.values())))) * r["bin_ms"]
     colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(STAGES)))
@@ -105,7 +108,8 @@ def main() -> None:
                  f"(baseline {data['baseline_wing_hz']:.1f} Hz; "
                  f"{data['n_null']} degree-matched random ablations per condition)",
                  fontsize=12)
-    ax.legend(fontsize=8, loc="lower right")
+    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2,
+              frameon=False)
     ax.set_xlim(right=max(drops) * 1.35)
     ax.grid(axis="x", alpha=0.3, zorder=0)
     fig.tight_layout()
