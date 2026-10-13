@@ -24,7 +24,11 @@ from fruresidual.features.atlas import load_neurotransmitters
 from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 from fruresidual.features.ml_features import build_features
 from fruresidual.features.rewiring import select_case_control_population
-from fruresidual.models.baselines import evaluate_baselines, out_of_fold_predictions
+from fruresidual.models.baselines import (
+    ablation_fold_test,
+    evaluate_baselines,
+    out_of_fold_predictions,
+)
 from fruresidual.models.gnn import build_graph, cross_validate_gnn
 from fruresidual.viz.phase2 import (
     plot_ablation_comparison,
@@ -90,6 +94,12 @@ def main() -> None:
 
     plot_ablation_comparison(ablation_table, figures_dir / "ablation_comparison.png")
 
+    # Paired across folds -- see ablation_fold_test's docstring for why the
+    # mean/std above cannot answer "does fru/dsx help".
+    fold_test = ablation_fold_test(X_without_fit, X_with_fit, y, random_state=RANDOM_STATE)
+    print("\n=== ablation, paired across folds ===")
+    print(fold_test.drop(columns=["r2_without_per_fold", "r2_with_per_fold"]).to_string(index=False))
+
     # --- Per-neuron residual scores: the actual Phase 2 deliverable ---
     # From the WITHOUT-fru/dsx model -- the point is what's left unexplained
     # by structure/region/neurotransmitter alone, mirroring Phase 0's logic
@@ -130,6 +140,7 @@ def main() -> None:
         "n_cases": int(population["is_case"].sum()),
         "n_controls": int((~population["is_case"]).sum()),
         "ablation_table": ablation_table.to_dict("records"),
+        "ablation_fold_test": fold_test.to_dict("records"),
         "gnn_cv_k": gnn_cv["k"],
         "gnn_cv_seeds": gnn_cv["seeds"],
         "gnn_cv_n_folds": gnn_cv["n_folds"],

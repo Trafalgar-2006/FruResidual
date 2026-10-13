@@ -63,7 +63,12 @@ true.
 Tested paired across folds, because both models see the same splits and
 the reported `r2_std` is variability *across* folds rather than the
 standard error of the difference — eyeballing overlapping error bars
-would have been the wrong comparison.
+would have been the wrong comparison. The paired test is computed by
+`fruresidual.models.baselines.ablation_fold_test` and recorded under
+`ablation_fold_test` in both phases' summary JSON, so every number in
+the table above regenerates from a run. (It was originally computed
+ad hoc and was not reproducible from the committed pipeline; the
+2026-10-13 audit closed that gap and confirmed all four rows unchanged.)
 
 **Ridge: a real effect.** Every one of the five folds improves, by
 +0.060 to +0.094. With five folds the smallest p-value Wilcoxon can
@@ -79,6 +84,53 @@ while the tree model already recovers it from interactions among
 superclass, connectivity and neurotransmitter. That is consistent with
 Phase 0/1: superclass is the strongest correlate of *fru*/*dsx* status,
 and a tree can exploit that where a linear model cannot.
+
+## The GNN verdict holds at this resolution too
+
+Phase 2's GNN was negative, but it was measured against a target we now
+know was largely artifact, so it was worth refitting rather than
+inheriting the verdict. Gradient boosting went 0.219 → 0.409 on the
+finer target; the graph model deserved the same second look.
+
+Same protocol as Phase 2 (5-fold CV × 3 seeds = 15 fits), so the number
+is directly comparable to the cross-validated baselines rather than a
+single lucky split:
+
+| | coarse target | fine target |
+|---|---|---|
+| best baseline (no *fru*/*dsx*) | 0.219 | 0.409 |
+| GNN | −0.388 ± 0.665 | **0.290 ± 0.239** |
+| GNN folds beating that baseline | 1/15 | 3/15 |
+| beats it on the mean | no | **no** |
+
+The GNN improves a great deal in absolute terms — from clearly broken
+to merely unhelpful — and its fold-to-fold variance drops by nearly
+two-thirds (±0.665 → ±0.239). But it still does not beat a gradient
+boosting model that never sees the graph, on the mean or on more than
+3 of 15 folds. The conclusion is unchanged and now rests on a better
+target: **1,268 nodes is not enough data to train this GNN
+competitively**, and the project plan's pre-registered response ("if the
+GNN doesn't beat gradient boosting, report that") still applies.
+
+## The "controls that look rewired" lead closes
+
+`docs/phase2_results.md` left a surviving thread: at coarse resolution,
+**5 isomorphic-labelled controls exceeded the 99th percentile of the
+case distribution**, i.e. a handful of supposedly unchanged neurons
+looked genuinely rewired. That was already the weakened remnant of a
+larger effect that turned out to be the category-asymmetry artifact.
+
+Re-examined on a target that separates cases from controls 2.5× better
+(effect size +0.659 vs +0.259):
+
+**0 of 634 controls** exceed the 99th percentile of the case
+distribution (0.7605).
+
+The lead does not survive the better measurement. The most likely
+reading is that it was the residue of the same coarse-metric noise that
+produced the original effect — at 10 buckets, a control with an unusual
+profile in one bucket can land high in the distribution, and at 5,338
+types it cannot. It is closed, not merely smaller.
 
 ## What this changes
 
@@ -116,6 +168,8 @@ and a tree can exploit that where a linear model cannot.
 python scripts/run_phase2_celltype.py
 ```
 
-Outputs `phase2ct_wiring_targets.feather`, `phase2ct_ablation_table.csv`
-and `phase2ct_summary.json` to `data_processed/`. The FlyWire fetch is
-checkpointed per type, so an interrupted run resumes where it stopped.
+Outputs `phase2ct_wiring_targets.feather`, `phase2ct_ablation_table.csv`,
+`phase2ct_residual_scores.feather` and `phase2ct_summary.json` to
+`data_processed/`. The FlyWire fetch is checkpointed per type, so an
+interrupted run resumes where it stopped; the GNN step needs a live
+neuPrint connection to pull population-internal edges.

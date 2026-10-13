@@ -383,6 +383,20 @@ superclass, connectivity and neurotransmitter.
 Structure still carries most of the signal: gradient boosting reaches
 R²=0.409 having never seen *fru*/*dsx*.
 
+Two further results were refit on the finer target rather than inherited
+from §4.3, since both were originally measured against a target now
+known to be largely artifact:
+
+- **The GNN verdict holds.** Under the same protocol (5-fold CV × 3
+  seeds) it improves from −0.388 ± 0.665 to 0.290 ± 0.239 — from broken
+  to merely unhelpful — but still loses to a gradient boosting model
+  that never sees the graph, on the mean and on 12 of 15 folds. 1,268
+  nodes remains too little data to train it competitively.
+- **The "controls that look rewired" lead closes.** §4.3 left 5
+  isomorphic-labelled controls above the 99th percentile of the case
+  distribution. At cell-type resolution that is **0 of 634**: the
+  remnant was itself coarse-metric noise.
+
 ### 4.7 Is the residual just unannotated? Mostly not
 
 Every result above rests on MaleCNS's own *fru*/*dsx* annotation, so all
@@ -485,7 +499,10 @@ Collected from each phase's own writeup, not softened:
   any claim about graph structure carrying signal beyond per-neuron
   features. It is now evaluated with k-fold CV over the graph (so the
   comparison is fair); what it would still need is a larger population
-  than this case-control design gives.
+  than this case-control design gives. Refitting on the cell-type target
+  (§4.6) cuts that instability to ±0.239 and lifts the mean to 0.290, so
+  part of the problem was the target rather than the model — but it still
+  loses to gradient boosting, so the conclusion stands.
 - **Phase 3's `cb_intrinsic` result is broad rather than specific.** The
   degree confound is now corrected (Cochran-Mantel-Haenszel), and its
   motifs survive it — but 29% of all tested partner types coming out

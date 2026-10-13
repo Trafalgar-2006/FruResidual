@@ -37,12 +37,17 @@ from scipy.stats import mannwhitneyu
 
 from fruresidual.config import load_config
 from fruresidual.data.flywire_client import fetch_flywire_type_profiles, load_flywire_annotations
-from fruresidual.data.neuprint_client import fetch_partner_type_profile
+from fruresidual.data.neuprint_client import fetch_partner_type_profile, fetch_population_edges
 from fruresidual.features.atlas import load_neurotransmitters
 from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 from fruresidual.features.ml_features import build_features
 from fruresidual.features.rewiring import select_case_control_population
-from fruresidual.models.baselines import evaluate_baselines
+from fruresidual.models.baselines import (
+    ablation_fold_test,
+    evaluate_baselines,
+    out_of_fold_predictions,
+)
+from fruresidual.models.gnn import build_graph, cross_validate_gnn
 
 RANDOM_STATE = 0
 # Fewer samples per type than Phase 2's 15. At cell-type resolution each
@@ -58,6 +63,9 @@ CHECKPOINT_EVERY = 1
 # A partner type has to be seen on enough neurons to carry information;
 # below this the profile vector is mostly noise from single connections.
 MIN_PARTNER_NEURONS = 5
+# Same protocol as Phase 2's GNN so the two are comparable.
+GNN_CV_FOLDS = 5
+GNN_SEEDS = (0, 1, 2)
 
 
 def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
@@ -210,8 +218,75 @@ def main() -> None:
     print("\n=== ablation at cell-type resolution ===")
     print(ablation.to_string(index=False))
 
+    # Paired across folds -- see ablation_fold_test's docstring for why the
+    # mean/std above cannot answer "does fru/dsx help". This is the test the
+    # resolution-dependent ablation conclusion actually rests on.
+    fold_test = ablation_fold_test(
+        X_without.drop(columns=["bodyId"])[keep],
+        X_with.drop(columns=["bodyId"])[keep],
+        y,
+        random_state=RANDOM_STATE,
+    )
+    print("\n=== ablation at cell-type resolution, paired across folds ===")
+    print(fold_test.drop(columns=["r2_without_per_fold", "r2_with_per_fold"]).to_string(index=False))
+
+    # --- GNN on the finer target ---
+    # Worth rerunning rather than inheriting Phase 2's verdict: that GNN
+    # was negative, but it was measured against a target we now know was
+    # largely artifact. Gradient boosting went 0.219 -> 0.409 on this
+    # one, so the graph model deserves the same second look.
+    print("\nfetching population-internal edges for GNN...")
+    edges = fetch_population_edges(cfg, population["bodyId"].tolist())
+    graph_features = X_without[keep].copy()
+    data = build_graph(graph_features, y, edges)
+    gnn = cross_validate_gnn(data, k=GNN_CV_FOLDS, seeds=GNN_SEEDS, epochs=200)
+    best_baseline = res_without["r2_mean"].max()
+    n_beating = int(sum(1 for r in gnn["r2_per_fold"] if r > best_baseline))
+    print(f"GNN R^2, {gnn['k']}-fold x {len(gnn['seeds'])} seeds ({gnn['n_folds']} fits): "
+          f"{gnn['r2_mean']:.3f} +/- {gnn['r2_std']:.3f} "
+          f"(min {gnn['r2_min']:.3f}, max {gnn['r2_max']:.3f})")
+    print(f"beats best baseline ({best_baseline:.3f}) on {n_beating}/{gnn['n_folds']} folds; "
+          f"on the mean: {'YES' if gnn['r2_mean'] > best_baseline else 'NO'}")
+
+    # --- Per-neuron residual scores on the finer target ---
+    oof = out_of_fold_predictions(
+        X_without.drop(columns=["bodyId"])[keep], y,
+        model_name="gradient_boosting", random_state=RANDOM_STATE,
+    )
+    is_case_by_body = population.set_index("bodyId")["is_case"]
+    kept_ids = body_ids[keep].to_numpy()
+    residual_scores = pd.DataFrame({
+        "bodyId": kept_ids,
+        "actual_wiring_difference": y.to_numpy(),
+        "predicted_wiring_difference": oof,
+        "residual": y.to_numpy() - oof,
+        "is_case": is_case_by_body.loc[kept_ids].to_numpy(),
+    })
+    residual_scores.to_feather(cfg.data_processed / "phase2ct_residual_scores.feather")
+
+    # The "isomorphic controls that look rewired" lead, re-examined on a
+    # target that separates cases from controls 2.5x better than the one
+    # it was first spotted on.
+    ctrl = residual_scores[~residual_scores["is_case"]]
+    case_q99 = residual_scores.loc[residual_scores["is_case"], "actual_wiring_difference"].quantile(0.99)
+    outliers = ctrl[ctrl["actual_wiring_difference"] > case_q99]
+    print(f"\ncontrols above the 99th percentile of cases ({case_q99:.4f}): "
+          f"{len(outliers)}/{len(ctrl)}")
+    if len(outliers):
+        print(outliers.nlargest(10, "actual_wiring_difference")[
+            ["bodyId", "actual_wiring_difference", "predicted_wiring_difference", "residual"]
+        ].to_string(index=False))
+
     summary = {
         "resolution": "partner_cell_type",
+        "gnn_cv_k": gnn["k"], "gnn_cv_seeds": gnn["seeds"], "gnn_cv_n_folds": gnn["n_folds"],
+        "gnn_test_r2_mean": gnn["r2_mean"], "gnn_test_r2_std": gnn["r2_std"],
+        "gnn_test_r2_min": gnn["r2_min"], "gnn_test_r2_max": gnn["r2_max"],
+        "gnn_n_folds_beating_best_baseline": n_beating,
+        "gnn_beats_best_baseline_on_mean": bool(gnn["r2_mean"] > best_baseline),
+        "n_control_outliers_above_case_q99": len(outliers),
+        "case_q99_wiring_difference": float(case_q99),
+        "ablation_fold_test": fold_test.to_dict("records"),
         "n_shared_partner_types": len(shared),
         "n_scored": len(targets),
         "n_cases": int(targets["is_case"].sum()),

@@ -218,6 +218,13 @@ genuinely rewired" remains a real, if much smaller, thread — either
 mislabelled, or wired differently with no dimorphism annotation at all.
 It is no longer the striking effect the original number implied.
 
+**Closed on 2026-10-13 at cell-type resolution.** Re-run on the finer
+target (effect size +0.659 vs +0.259 here), **zero** of 634 controls
+exceed the 99th percentile of the case distribution — down from 5. The
+remnant was itself coarse-metric noise: with only 10 buckets an unusual
+control profile can land high in the distribution, and with 5,338
+partner types it cannot. See `docs/phase2_celltype_results.md`.
+
 ## Limitations, stated plainly
 
 - **Coarse metric**: the wiring-difference target compares profiles over

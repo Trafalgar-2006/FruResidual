@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
+from scipy.stats import wilcoxon
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold, cross_val_predict, cross_val_score
 from sklearn.pipeline import make_pipeline
@@ -66,3 +67,46 @@ def out_of_fold_predictions(
     kf = KFold(n_splits=cv, shuffle=True, random_state=random_state)
     model = _models(random_state)[model_name]
     return cross_val_predict(model, X, y, cv=kf)
+
+
+def ablation_fold_test(
+    X_without: pd.DataFrame, X_with: pd.DataFrame, y: pd.Series, cv: int = 5, random_state: int = 0
+) -> pd.DataFrame:
+    """Per-fold R^2 for both ablation arms on identical splits, plus the
+    paired comparison between them.
+
+    Exists because "does adding fru/dsx help" is a PAIRED question, and
+    the mean/std that evaluate_baselines reports cannot answer it: that
+    r2_std is variability across folds, not the standard error of the
+    difference, so eyeballing two overlapping error bars is the wrong
+    test. Both arms are scored on the same KFold splits (same cv and
+    random_state as evaluate_baselines), so fold i of one arm pairs with
+    fold i of the other.
+
+    Wilcoxon's smallest attainable p at cv=5 is 0.0625, so a unanimous
+    direction across five folds is the strongest evidence this fold
+    count can produce -- not weak evidence.
+    """
+    kf = KFold(n_splits=cv, shuffle=True, random_state=random_state)
+    rows = []
+    for name, model in _models(random_state).items():
+        without = cross_val_score(model, X_without, y, cv=kf, scoring="r2")
+        with_ = cross_val_score(model, X_with, y, cv=kf, scoring="r2")
+        delta = with_ - without
+        # wilcoxon drops zero-differences and errors when none are left;
+        # identical arms are "no evidence of a difference", i.e. p=1.
+        p = 1.0 if np.allclose(delta, 0) else float(wilcoxon(with_, without)[1])
+        rows.append(
+            {
+                "model": name,
+                "r2_without_per_fold": [float(x) for x in without],
+                "r2_with_per_fold": [float(x) for x in with_],
+                "delta_mean": float(delta.mean()),
+                "delta_min": float(delta.min()),
+                "delta_max": float(delta.max()),
+                "n_folds_improving": int((delta > 0).sum()),
+                "n_folds": cv,
+                "wilcoxon_p": p,
+            }
+        )
+    return pd.DataFrame(rows)

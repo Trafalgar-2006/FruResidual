@@ -215,6 +215,29 @@ conclusion both survive the fix, but all absolute R² values dropped), and
 the ridge baseline was un-mis-specified (one-hot encoding plus in-pipeline
 scaling). Per-neuron residual scores are saved for Phase 3.
 
+**Phase 2 at cell-type resolution: done.** Run
+`python scripts/run_phase2_celltype.py` (needs `NEUPRINT_TOKEN` and
+`CAVE_TOKEN`; the FlyWire fetch is checkpointed per type so an
+interrupted run resumes). Full writeup:
+[docs/phase2_celltype_results.md](docs/phase2_celltype_results.md).
+Rebuilds the same wiring-difference target over 5,338 shared partner
+**cell types** instead of 10 superclass buckets — the project's largest
+acknowledged methodological weakness. The coarse metric was blunt, not
+wrong: the finer target separates cases from controls at effect size
++0.659 against +0.259, and gradient boosting reaches R²=0.409 without
+*fru*/*dsx*. **The "adds nothing" conclusion above is resolution-
+dependent**: it holds for the tree model at both resolutions, but at
+cell-type resolution *fru*/*dsx* helps the **linear** model in all 5
+folds (+0.075, Wilcoxon p=0.0625, the floor at n=5), so the honest
+claim is narrower — no *incremental* value to a model that can already
+exploit structural interactions. Two results were refit here rather
+than inherited, since both were first measured against a target now
+known to be largely artifact: the **GNN verdict holds** (improves from
+−0.388 ± 0.665 to 0.290 ± 0.239 — from broken to merely unhelpful — but
+still loses to gradient boosting on the mean and on 12 of 15 folds),
+and the **"controls that look rewired" lead closes** (5 controls above
+the 99th percentile of cases at coarse resolution, 0 of 634 here).
+
 **Phase 3 (hypothesis): done.** Run `python scripts/run_phase3_data.py`
 then `python scripts/run_phase3.py` to reproduce (~1 min total; the
 first script fetches and caches the connectivity profiles, skipping
