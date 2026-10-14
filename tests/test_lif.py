@@ -87,3 +87,49 @@ def test_simulation_is_deterministic():
     a = simulate(chain(), np.array([0]), duration_ms=200.0, record_every=0)
     b = simulate(chain(), np.array([0]), duration_ms=200.0, record_every=0)
     assert np.array_equal(a["spike_counts"], b["spike_counts"])
+
+
+def test_batch_of_one_matches_unbatched():
+    # The batch dimension must not disturb the validated single-run path.
+    a = simulate(chain(), np.array([0]), duration_ms=200.0, record_every=0)
+    b = simulate(chain(), np.array([0]), duration_ms=200.0, record_every=0, n_batch=1)
+    assert a["spike_counts"].shape == b["spike_counts"].shape
+    assert np.array_equal(a["spike_counts"], b["spike_counts"])
+
+
+def test_batch_shapes():
+    r = simulate(chain(), np.array([0]), duration_ms=100.0, record_every=0, n_batch=4,
+                 track_groups={"last": np.array([4])}, bin_ms=5.0)
+    assert r["spike_counts"].shape == (5, 4)
+    assert r["group_traces_hz"]["last"].shape == (4, 20)   # (batch, bins)
+    assert r["n_batch"] == 4
+
+
+def test_lesion_is_confined_to_its_own_column():
+    # The whole point of per-column lesions: one column's silencing must not
+    # leak into its neighbours, or batched training data is silently wrong.
+    lesions = [None, np.array([2]), None]
+    r = simulate(chain(), np.array([0]), duration_ms=400.0, record_every=0,
+                 silenced_idx=lesions, n_batch=3)
+    counts = r["spike_counts"]
+    assert counts[2, 1] == 0, "silenced neuron fired in its own column"
+    assert counts[4, 1] == 0, "signal passed a silenced neuron"
+    assert counts[2, 0] > 0 and counts[2, 2] > 0, "lesion leaked into other columns"
+    assert counts[4, 0] > 0 and counts[4, 2] > 0
+
+
+def test_per_column_stimulus_series():
+    # Column 1 is driven, column 0 is not.
+    steps = 400
+    series = np.zeros((steps, 2), dtype=np.float32)
+    series[:, 1] = 300.0
+    r = simulate(chain(), np.array([0]), record_every=0,
+                 stim_rate_series=series, n_batch=2)
+    assert r["spike_counts"][0, 0] == 0
+    assert r["spike_counts"][0, 1] > 0
+
+
+def test_mismatched_batch_inputs_raise():
+    with pytest.raises(ValueError):
+        simulate(chain(), np.array([0]), duration_ms=50.0, record_every=0,
+                 silenced_idx=[None, None], n_batch=3)

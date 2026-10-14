@@ -86,6 +86,7 @@ def simulate(
     bin_ms: float = 5.0,
     stim_rate_series: np.ndarray | None = None,
     seed: int = 0,
+    n_batch: int = 1,
 ) -> dict:
     """Run the network with `stim_idx` driven at params.stim_rate_hz.
 
@@ -105,26 +106,45 @@ def simulate(
     n = adj.shape[0]
     steps = round(duration_ms / p.dt)
 
+    # Independent simulations run as COLUMNS of a dense matrix. The sparse
+    # matrix is identical across them and dominates the cost -- streaming
+    # 25.5M non-zeros once serves every column -- so B runs cost barely more
+    # than one. This is what makes generating a training set, or averaging
+    # trials, affordable. B=1 is the ordinary single-run path.
+    B = max(1, int(n_batch))
+
     rate_series = None
     if stim_rate_series is not None:
-        rate_series = torch.from_numpy(
-            np.asarray(stim_rate_series, dtype=np.float32)).to(device)
-        steps = len(rate_series)
+        arr = np.asarray(stim_rate_series, dtype=np.float32)
+        if arr.ndim == 1:
+            arr = arr[:, None]
+        if arr.shape[1] == 1 and B > 1:
+            arr = np.repeat(arr, B, axis=1)
+        if arr.shape[1] != B:
+            raise ValueError(f"stim_rate_series has {arr.shape[1]} columns, n_batch={B}")
+        rate_series = torch.from_numpy(arr).to(device)
+        steps = arr.shape[0]
         duration_ms = steps * p.dt
 
     w_t = to_torch_transposed(adj, device)
-    v = torch.full((n,), p.v_rest, dtype=torch.float32, device=device)
-    refrac = torch.zeros(n, dtype=torch.float32, device=device)
-    counts = torch.zeros(n, dtype=torch.int32, device=device)
-    prev_spikes = torch.zeros(n, dtype=torch.float32, device=device)
+    v = torch.full((n, B), p.v_rest, dtype=torch.float32, device=device)
+    refrac = torch.zeros((n, B), dtype=torch.float32, device=device)
+    counts = torch.zeros((n, B), dtype=torch.int32, device=device)
+    prev_spikes = torch.zeros((n, B), dtype=torch.float32, device=device)
 
-    stim = torch.zeros(n, dtype=torch.bool, device=device)
+    stim = torch.zeros((n, 1), dtype=torch.bool, device=device)
     if len(stim_idx):
         stim[torch.from_numpy(np.asarray(stim_idx, dtype=np.int64)).to(device)] = True
 
-    silent = torch.zeros(n, dtype=torch.bool, device=device)
-    if silenced_idx is not None and len(silenced_idx):
-        silent[torch.from_numpy(np.asarray(silenced_idx, dtype=np.int64)).to(device)] = True
+    # One lesion per column, so a batch can sweep lesions as well as inputs.
+    silent = torch.zeros((n, B), dtype=torch.bool, device=device)
+    if silenced_idx is not None:
+        per_col = silenced_idx if isinstance(silenced_idx, (list, tuple)) else [silenced_idx] * B
+        if len(per_col) != B:
+            raise ValueError(f"{len(per_col)} lesion masks for n_batch={B}")
+        for c, sil in enumerate(per_col):
+            if sil is not None and len(sil):
+                silent[torch.from_numpy(np.asarray(sil, dtype=np.int64)).to(device), c] = True
 
     decay = p.dt / p.tau_m
     # Probability a stimulated neuron fires on any given step.
@@ -150,8 +170,9 @@ def simulate(
         # Leak toward rest.
         v += decay * (p.v_rest - v)
 
-        # Drive from last step's spikes.
-        v += p.synapse_mv * torch.mv(w_t, prev_spikes)
+        # Drive from last step's spikes. One sparse-dense matmul advances
+        # every column at once.
+        v += p.synapse_mv * (w_t @ prev_spikes)
 
         v = torch.where(refrac > 0, torch.full_like(v, p.v_reset), v)
         refrac = torch.clamp(refrac - p.dt, min=0.0)
@@ -159,9 +180,13 @@ def simulate(
         spikes = (v >= p.v_threshold) & (refrac <= 0)
         # Stimulated neurons fire as a Poisson-like process regardless of input.
         # With a rate series, the probability follows the sound's envelope.
-        step_p = p_stim if rate_series is None else float(rate_series[t]) * p.dt / 1000.0
-        if step_p > 0:
-            draw = torch.rand(n, generator=gen, device=device) < step_p
+        if rate_series is None:
+            if p_stim > 0:
+                draw = torch.rand((n, B), generator=gen, device=device) < p_stim
+                spikes = spikes | (stim & draw)
+        else:
+            step_p = rate_series[t] * (p.dt / 1000.0)      # (B,)
+            draw = torch.rand((n, B), generator=gen, device=device) < step_p
             spikes = spikes | (stim & draw)
         spikes = spikes & ~silent
 
@@ -171,22 +196,33 @@ def simulate(
         counts += spikes.int()
         prev_spikes = spikes.float()
         if record_every and t % record_every == 0:
-            rate_trace.append(float(spikes.sum()) / n * 1000.0 / p.dt)
+            rate_trace.append(float(spikes.sum()) / (n * B) * 1000.0 / p.dt)
 
         if track_groups:
             for k, gidx in g_idx.items():
-                g_acc[k] += int(spikes[gidx].sum())
+                g_acc[k] = g_acc[k] + spikes[gidx].sum(dim=0)   # (B,)
             if (t + 1) % bin_steps == 0:
                 window_s = bin_steps * p.dt / 1000.0
                 for k, gidx in g_idx.items():
-                    tracks[k].append(g_acc[k] / len(gidx) / window_s)
+                    tracks[k].append((g_acc[k].float() / len(gidx) / window_s).cpu().numpy())
                     g_acc[k] = 0
 
+    # B=1 collapses back to the original 1-D shapes, so every existing caller
+    # and every validated result is untouched by the batch dimension.
+    cnt = counts.cpu().numpy()
+    traces = {k: np.array(v, dtype=np.float32) for k, v in tracks.items()}  # (bins, B)
+    if B == 1:
+        cnt = cnt[:, 0]
+        traces = {k: v[:, 0] for k, v in traces.items()}
+    else:
+        traces = {k: v.T for k, v in traces.items()}                        # (B, bins)
+
     return {
-        "spike_counts": counts.cpu().numpy(),
-        "rates_hz": counts.cpu().numpy() / (duration_ms / 1000.0),
+        "spike_counts": cnt,
+        "rates_hz": cnt / (duration_ms / 1000.0),
         "rate_trace_hz": np.array(rate_trace, dtype=np.float32),
-        "group_traces_hz": {k: np.array(v, dtype=np.float32) for k, v in tracks.items()},
+        "group_traces_hz": traces,
+        "n_batch": B,
         "bin_ms": bin_ms,
         "duration_ms": duration_ms,
         "device": device,
