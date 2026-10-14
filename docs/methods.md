@@ -119,7 +119,62 @@ Two confounds are handled explicitly:
 Positive controls must break the song (pIP10, TN1); size-matched random
 sets must not. Empirical p is `(k+1)/(n+1)`, so it is never exactly 0.
 
-## 5. Known limitations
+## 5. Audio in, song out
+
+Both ends of this are real anatomy rather than sonification by analogy.
+
+**Input.** Johnston's organ (JO) neurons in the antenna are the fly's
+ears: 138 JO-A/JO-B in MaleCNS, the vibration-sensitive subtypes tuned to
+the near-field band courtship song occupies. JO-C/D/E encode gravity and
+wind and are excluded. Audio is band-passed to 80–1000 Hz, its analytic
+envelope taken, and that envelope sets the ear neurons' firing rate
+moment to moment — which is what an antenna physically does.
+
+**Output.** Fly song is built from *pulses*: each wing vibration produces
+one brief damped oscillation near 250 Hz. So one wing-motor spike maps
+onto one pulse, and the spike train becomes a waveform by construction.
+
+**The fly does not reproduce the input.** Its wing is not a speaker and
+the circuit is not a transmission line. What comes out follows the
+input's rhythm and loudness, never its pitch or melody.
+
+Two deliberate lossy choices, pinned by tests:
+
+- **Absolute level is discarded.** The envelope is normalised per clip, so
+  a quiet recording drives the ears as hard as a loud one. Nothing maps
+  digital amplitude to sound pressure without knowing playback level, so
+  a fixed mapping would be false precision.
+- **Dynamics are compressed** (square root), so loud passages cannot pin
+  every ear neuron at saturation, where input differences stop producing
+  output differences.
+
+### The readout was measured, not assumed
+
+Driving JO at 150 Hz for 200 ms:
+
+| group | rate |
+|---|---|
+| JO (ears) | 147.4 Hz |
+| `cb_sensory` | 4.18 Hz |
+| `descending` | 0.68 Hz |
+| pC1, pIP10, TN1, wing motor | **0.00 Hz** |
+
+**Sound alone does not make a male sing.** That is correct biology: song
+is released through P1 by pheromone and context, not by hearing. Hence
+three conditions:
+
+| condition | stimulus | readout | result |
+|---|---|---|---|
+| **courting** | ears + pC1 | wing motor | 22.5% of steps active, **8.38 Hz** |
+| hearing | ears | descending | 18.6% of steps, 0.43 Hz |
+| hearing only | ears | wing motor | 0.1% of steps, 0.03 Hz |
+
+A courting male sings along to what he hears; the same male merely
+listening is audibly silent (rms 0.027 against 0.189). pC1 is held at its
+own constant command rate rather than riding the audio envelope — driving
+both from one series would make the song a direct echo of the input.
+
+## 6. Known limitations
 
 - **No female comparison yet.** FlyWire connectivity is on Zenodo record
   10676866, which returned HTTP 504 on every attempt. It is also

@@ -53,6 +53,14 @@ The 89 *fru*/*dsx*-**unexplained** descending neurons drop the song
 drop it **2.3%**. Neurons the genetic switch cannot account for are doing
 real work in the circuit the switch is supposed to build.
 
+**Play a sound into its ears and it responds.** Johnston's organ in the
+antenna is the fly's ear, and fly song is a train of wing-beat pulses, so
+audio in and song out are both real anatomy rather than sonification by
+analogy. A male already courting sings along to what he hears (8.38 Hz);
+the same male merely listening is audibly silent (0.03 Hz). Sound alone
+does not release song — that takes P1, which is correct biology. The fly
+never reproduces the input: its wing is not a speaker.
+
 The motivating hypothesis for using a whole-CNS connectome — that
 brain-only models miss nerve-cord feedback — **failed its own control**
 (p=0.41) and is reported as a negative result.
@@ -70,7 +78,8 @@ Full detail, including what this model cannot support, is in
 | ablation experiment | done — see [docs/results.md](docs/results.md) |
 | residual breakdown by class | done |
 | brain-only vs whole-CNS | done — **negative**, hypothesis failed its control |
-| female (FlyWire) comparison | **blocked** — Zenodo 504 |
+| audio in / song out | done |
+| female (FlyWire) comparison | downloading connectivity (852 MB) |
 
 ## Relationship to FruResidual
 
@@ -100,6 +109,11 @@ python scripts/calibrate_gain.py      # gain sweep + specificity check
 python scripts/run_ablation.py        # the experiment
 python scripts/run_brain_only.py      # does amputating the VNC matter?
 python scripts/make_figures.py
+
+python scripts/run_audio.py clip.mp3 --seconds 4   # play a sound into its ears
+python scripts/build_flywire_connectome.py         # female side
+python scripts/run_sex_comparison.py               # male vs female
+python scripts/make_demo_data.py                   # bundle for the demo page
 
 python -m pytest tests/ -q
 ```
