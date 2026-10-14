@@ -85,6 +85,7 @@ def simulate(
     track_groups: dict[str, np.ndarray] | None = None,
     bin_ms: float = 5.0,
     stim_rate_series: np.ndarray | None = None,
+    seed: int = 0,
 ) -> dict:
     """Run the network with `stim_idx` driven at params.stim_rate_hz.
 
@@ -131,7 +132,9 @@ def simulate(
     refrac_steps = p.refractory_ms
 
     rate_trace: list[float] = []
-    gen = torch.Generator(device=device).manual_seed(0)
+    # Seeded so a run is reproducible; varying it gives independent trials,
+    # which is what trial averaging needs to cancel the stimulus shot noise.
+    gen = torch.Generator(device=device).manual_seed(seed)
 
     # Per-group spike counts in time bins, so the cascade can be watched
     # propagating rather than only summarised at the end.
