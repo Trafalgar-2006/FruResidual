@@ -146,6 +146,62 @@ MaleCNS at all, and it failed. The case for MaleCNS now rests on the
 ablation result above — where the two significant residual classes are
 `ascending_neuron` and `descending_neuron` — not on this.
 
+## Male vs female: no difference at the only readout both share
+
+FlyWire (female) is brain-only. pIP10, TN1, dPR1 and every wing motor
+neuron are absent, so "song" cannot be measured there at all. The one
+stage both datasets contain is the **descending population**, and it is
+almost perfectly size-matched: 1,314 male against 1,303 female.
+
+Three confounds had to be removed first, and the raw numbers are
+uninterpretable without them:
+
+| | male | female |
+|---|---|---|
+| neurons | 165,122 (143k after brain-only restriction) | 139,248 |
+| edges | 25,563,197 | 15,090,883 |
+| synapses | 124,025,046 | 54,490,417 |
+| calibrated gain | 0.0298 | 0.0928 |
+| pC1 | **156** | **10** |
+
+The gain differs threefold because the datasets were reconstructed by
+different groups with different synapse detection. Each network is
+bisected to the same population firing rate before anything is compared.
+
+**The stimulus-matched comparison is not usable.** Forcing both sides to
+10 pC1 neurons gave female 10.71 Hz against male 0.60 Hz — a 17×
+difference that is an artefact, not biology. In that regime pC1 is barely
+above a random stimulus of the same size (3.0× female, 1.6× male), so the
+script prints a warning and the number should not be read as a finding.
+It also deletes the thing being studied: the male's 156 pC1 against the
+female's 10 **is** the dimorphism.
+
+**Measured at each sex's natural size, against a random stimulus of that
+same size in that same network:**
+
+| | n pC1 | pC1 → descending | random control | ratio |
+|---|---|---|---|---|
+| male | 156 | 7.298 Hz | 3.271 ± 0.960 Hz | **2.2×** |
+| female | 10 | 10.706 Hz | 4.780 ± 1.975 Hz | **2.2×** |
+
+Identical. Once gain, network size and stimulus size are all controlled,
+the courtship command drives the descending output equally far above
+background in both sexes.
+
+### Why that null is probably the readout's fault
+
+This should not be read as "the sexes are the same". The readout averages
+**1,314 descending neurons**, and the dimorphism that matters here is
+**pIP10 — 2 neurons**. A two-neuron difference is diluted roughly 650-fold
+in that mean, so this measurement could not detect it even if it were
+enormous.
+
+And the deeper asymmetry cannot be fixed by a better readout: pIP10,
+TN1 and dPR1 **have no female counterpart to compare against**. They are
+present in one sex and absent in the other. That is a presence/absence
+fact, not a quantity with two values, so the honest output is the bulk
+null plus the statement that the bulk is the wrong place to look.
+
 ## What this does not show
 
 - **Not per-neuron dominance.** 7.2% over 89 neurons is 0.08% each;

@@ -205,6 +205,7 @@ def calibrate_to_population_rate(
     duration_ms: float = 100.0,
     iters: int = 14,
     device: str | None = None,
+    silenced_idx: np.ndarray | None = None,
 ) -> tuple[float, float]:
     """Bisect `synapse_mv` until the whole-network mean firing rate hits
     `target_hz` under the given stimulus.
@@ -224,8 +225,13 @@ def calibrate_to_population_rate(
     best = (hi, float("nan"))
     for _ in range(iters):
         mid = (lo + hi) / 2
+        # The silence mask must match the condition the gain will be USED
+        # under. Calibrating a whole-CNS network and then running it with
+        # the nerve cord silenced sets the gain for a network that is not
+        # the one being measured.
         r = simulate(adj, stim_idx, duration_ms=duration_ms,
-                     params=LIFParams(synapse_mv=mid), record_every=0, device=device)
+                     params=LIFParams(synapse_mv=mid), record_every=0, device=device,
+                     silenced_idx=silenced_idx)
         rate = float(r["rates_hz"].mean())
         best = (mid, rate)
         if rate < target_hz:

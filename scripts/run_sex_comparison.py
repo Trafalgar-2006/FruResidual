@@ -93,7 +93,8 @@ def main() -> None:
     # --- 2. calibrate each network to the same population rate ---
     for which, s in sides.items():
         gain, achieved = calibrate_to_population_rate(
-            s["adj"], s["gi"]["pC1"], target_hz=TARGET_POP_HZ)
+            s["adj"], s["gi"]["pC1"], target_hz=TARGET_POP_HZ,
+            silenced_idx=s["silence"])
         s["gain"] = gain
         print(f"{which}: calibrated synapse_mv = {gain:.5f} "
               f"(population {achieved:.3f} Hz, target {TARGET_POP_HZ})")
@@ -138,19 +139,64 @@ def main() -> None:
     out["female_vs_male_subsample_p"] = p_two
 
     # --- specificity on both sides ---
+    # Raw rates are NOT comparable across sexes: each network got its own
+    # gain, so one can sit in a far less specific regime than the other and
+    # still hit the same population mean. What IS comparable is how far pC1
+    # rises above a size-matched random stimulus in the SAME network.
+    ctrl_hz = {}
     for which, s in sides.items():
         central = "cb_intrinsic" if which == "male" else "central"
         pool = np.where(s["sc"] == central)[0]
-        ctrl = rng.choice(pool, n_match, replace=False)
-        rows.append({"comparison": f"random {central} (specificity control)",
+        ctrls = [dn_rate(s, rng.choice(pool, n_match, replace=False)) for _ in range(10)]
+        ctrl_hz[which] = float(np.mean(ctrls))
+        rows.append({"comparison": f"random {central} (specificity control, n=10)",
                      "sex": which, "n_stim": n_match,
-                     "descending_hz": dn_rate(s, ctrl)})
+                     "descending_hz": ctrl_hz[which],
+                     "control_std": float(np.std(ctrls))})
 
     df = pd.DataFrame(rows)
     print("\n=== descending-neuron output (the shared readout) ===")
     print(df.to_string(index=False))
     print(f"\nfemale {female_val:.3f} Hz vs male subsampled "
           f"{male_sub.mean():.3f} +/- {male_sub.std():.3f} Hz   two-sided p = {p_two:.4f}")
+
+    # --- each sex at its OWN natural pC1 size, self-normalised ---
+    # Matching both to n=10 deletes the dimorphism being studied: the male's
+    # 156 pC1 against the female's 10 IS the expansion. So also measure each
+    # sex at its own size against a random stimulus of that same size, which
+    # cancels both the gain difference and the population-size difference.
+    print("\n=== each sex at its natural pC1 size, vs a random stimulus of equal size ===")
+    natural = {}
+    for which, s in sides.items():
+        n_own = len(s["gi"]["pC1"])
+        central = "cb_intrinsic" if which == "male" else "central"
+        pool = np.where(s["sc"] == central)[0]
+        ctrls = [dn_rate(s, rng.choice(pool, n_own, replace=False)) for _ in range(10)]
+        sig_hz = dn_rate(s, s["gi"]["pC1"])
+        c_mean = float(np.mean(ctrls))
+        ratio = sig_hz / c_mean if c_mean > 0 else float("inf")
+        natural[which] = {"n_pC1": int(n_own), "pC1_hz": sig_hz,
+                          "control_hz": c_mean, "control_std": float(np.std(ctrls)),
+                          "ratio": None if ratio == float("inf") else ratio}
+        print(f"  {which:<7} n={n_own:>4}  pC1 {sig_hz:7.3f} Hz   "
+              f"random {c_mean:7.3f} +/- {np.std(ctrls):.3f} Hz   "
+              f"ratio {'inf' if ratio == float('inf') else f'{ratio:.1f}x'}")
+    out["natural_size"] = natural
+
+    print("\n=== signal above its own control (stimulus-matched at n=10) ===")
+    sig = {"female": female_val, "male": float(male_sub.mean())}
+    for which, sig_hz in sig.items():
+        c = ctrl_hz[which]
+        ratio = sig_hz / c if c > 0 else float("inf")
+        out[f"{which}_control_hz"] = c
+        out[f"{which}_signal_over_control"] = None if ratio == float("inf") else ratio
+        print(f"  {which:<7} pC1 {sig_hz:7.3f} Hz   random control {c:7.3f} Hz   "
+              f"ratio {'inf' if ratio == float('inf') else f'{ratio:.1f}x'}")
+    if min(ctrl_hz.values()) > 0 and max(
+            sig[w] / ctrl_hz[w] for w in sig) < 5:
+        print("\n  WARNING: pC1 is not clearly above background in at least one "
+              "network. The sexes are not in comparable regimes and the raw "
+              "rate difference above should not be read as biology.")
 
     out["rows"] = rows
     (P / "sex_comparison.json").write_text(json.dumps(out, indent=2))
