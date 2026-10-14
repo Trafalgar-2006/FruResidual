@@ -129,3 +129,33 @@ python scripts/make_demo_data.py                   # bundle for the demo page
 
 python -m pytest tests/ -q
 ```
+
+## The site
+
+`site/` is a complete static site — every number and every sound was produced
+by the simulation ahead of time, so it needs **no GPU, no server and no
+backend**. Build it with:
+
+```
+python scripts/make_library.py      # the 20 precomputed responses
+python scripts/make_demo_data.py    # lesion traces + result tables
+python scripts/build_site.py        # assembles site/
+```
+
+Deploy by uploading `site/` to any static host:
+
+```
+npx wrangler pages deploy site --project-name courtship-exe   # Cloudflare Pages
+netlify deploy --dir site --prod                              # Netlify
+```
+
+`site/index.html` is a self-contained document with its own `<meta charset>`.
+That matters: static hosts serve `.html` with no charset in the
+Content-Type header, and without the meta the browser falls back to Latin-1
+and every non-ASCII glyph becomes mojibake. The file is kept pure ASCII with
+HTML entities and `\u` escapes so it survives either way.
+
+**Live upload is deliberately absent.** The surrogate that would have made it
+possible without a GPU failed its validation gate — see
+[docs/surrogate.md](docs/surrogate.md). Everything on the site is the real
+simulation rather than an imitation of it.
