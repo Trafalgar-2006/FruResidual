@@ -84,6 +84,7 @@ def simulate(
     record_every: int = 1,
     track_groups: dict[str, np.ndarray] | None = None,
     bin_ms: float = 5.0,
+    stim_rate_series: np.ndarray | None = None,
 ) -> dict:
     """Run the network with `stim_idx` driven at params.stim_rate_hz.
 
@@ -91,12 +92,24 @@ def simulate(
     applied. Nothing is deleted -- the matrix is untouched and the mask is
     per-run, so the same adjacency serves intact and lesioned conditions.
 
+    `stim_rate_series` replaces the constant rate with a per-timestep one,
+    which is how a sound becomes an input: the envelope of what the fly
+    hears sets its ear neurons' firing rate moment to moment. Its length
+    defines the run, overriding `duration_ms`.
+
     Returns per-neuron spike counts and the population firing-rate trace.
     """
     p = params or LIFParams()
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     n = adj.shape[0]
     steps = round(duration_ms / p.dt)
+
+    rate_series = None
+    if stim_rate_series is not None:
+        rate_series = torch.from_numpy(
+            np.asarray(stim_rate_series, dtype=np.float32)).to(device)
+        steps = len(rate_series)
+        duration_ms = steps * p.dt
 
     w_t = to_torch_transposed(adj, device)
     v = torch.full((n,), p.v_rest, dtype=torch.float32, device=device)
@@ -142,8 +155,10 @@ def simulate(
 
         spikes = (v >= p.v_threshold) & (refrac <= 0)
         # Stimulated neurons fire as a Poisson-like process regardless of input.
-        if p_stim > 0:
-            draw = torch.rand(n, generator=gen, device=device) < p_stim
+        # With a rate series, the probability follows the sound's envelope.
+        step_p = p_stim if rate_series is None else float(rate_series[t]) * p.dt / 1000.0
+        if step_p > 0:
+            draw = torch.rand(n, generator=gen, device=device) < step_p
             spikes = spikes | (stim & draw)
         spikes = spikes & ~silent
 

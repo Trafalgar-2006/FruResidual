@@ -25,6 +25,11 @@ import pandas as pd
 
 # Groups are matched on the `type` column by regex (anchored at the start).
 GROUPS: dict[str, str] = {
+    # The fly's ears. Johnston's organ sits in the antenna; the A and B
+    # subtypes are the vibration-sensitive ones tuned to the near-field
+    # frequencies courtship song occupies. C/D/E encode gravity and wind
+    # and are deliberately excluded.
+    "JO": r"JO-[AB]",
     # Sensory input: cVA-responsive olfactory receptor neurons.
     "ORN_DA1": r"ORN_DA1",
     "ORN_VA1v": r"ORN_VA1v",

@@ -1,0 +1,398 @@
+<title>Courtship.exe</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: a multi-channel recording rig — stacked channel strips driven by
+     a condition rail, then the lesion results below. */
+  :root {
+    --bg: #f4f3f0;
+    --surface: #ffffff;
+    --rule: #ddd9d2;
+    --fg: #1b1a18;
+    --muted: #6d6962;
+    --accent: #b4551d;      /* song / active */
+    --cool: #1f6f75;        /* structure, upstream */
+    --dead: #a9a49b;        /* silenced */
+    --grid: #e7e3dc;
+    --font-display: "IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171a; --surface: #1b1f23; --rule: #2d3339; --fg: #e8e6e1;
+      --muted: #8e9699; --accent: #f0a04b; --cool: #4fc3c9; --dead: #4a5056;
+      --grid: #232a2f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --surface: #1b1f23; --rule: #2d3339; --fg: #e8e6e1;
+    --muted: #8e9699; --accent: #f0a04b; --cool: #4fc3c9; --dead: #4a5056;
+    --grid: #232a2f; color-scheme: dark;
+  }
+
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.55; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; }
+  h1 { font-family: var(--font-display); font-size: clamp(2rem, 6vw, 3.1rem); line-height: 1.04;
+       margin: 0 0 .4rem; letter-spacing: -.015em; text-wrap: balance; }
+  h2 { font-family: var(--font-display); font-size: clamp(1.25rem, 3vw, 1.6rem); margin: 0 0 .2rem;
+       letter-spacing: -.01em; text-wrap: balance; }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 62ch; margin: 0 0 1.6rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
+             text-transform: uppercase; color: var(--muted); margin: 0 0 .6rem; }
+  section { margin-top: 56px; }
+  p { max-width: 68ch; }
+  .note { font-size: .9rem; color: var(--muted); max-width: 68ch; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px 28px; font-family: var(--font-mono);
+           font-size: .82rem; color: var(--muted); border-top: 1px solid var(--rule);
+           border-bottom: 1px solid var(--rule); padding-block: 12px; margin-bottom: 34px; }
+  .stats b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .rig { display: grid; grid-template-columns: 228px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 760px) { .rig { grid-template-columns: 1fr; } }
+
+  .rail { display: flex; flex-direction: column; gap: 6px; }
+  .rail-label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .1em;
+                text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  button.cond { font: inherit; font-size: .88rem; text-align: left; cursor: pointer;
+    background: var(--surface); color: var(--fg); border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule); border-radius: 3px; padding: 9px 11px; width: 100%;
+    transition: border-color .12s, background .12s; }
+  button.cond:hover { border-color: var(--muted); }
+  button.cond[aria-pressed="true"] { border-left-color: var(--accent); background: var(--bg);
+    border-color: var(--muted); font-weight: 600; }
+  button.cond .n { display: block; font-family: var(--font-mono); font-size: .72rem;
+                   color: var(--muted); font-weight: 400; margin-top: 2px; }
+  button.cond:focus-visible, .toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .scope { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+           padding: 14px 14px 10px; min-width: 0; }
+  .scope-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline;
+                justify-content: space-between; margin-bottom: 10px; }
+  .readout { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); }
+  .readout b { font-size: 1.5rem; color: var(--accent); font-weight: 600;
+               font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: auto; display: block; }
+  .legend { font-family: var(--font-mono); font-size: .72rem; color: var(--muted); margin-top: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .scroll { overflow-x: auto; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 180px; }
+  th { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
+       color: var(--muted); font-weight: 500; }
+  td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  td.name { font-family: var(--font-body); }
+  .bar { position: relative; height: 18px; background: var(--grid); border-radius: 2px; min-width: 120px; }
+  .bar i { position: absolute; top: 0; bottom: 0; left: 50%; background: var(--accent); border-radius: 2px; }
+  .bar i.neg { background: var(--cool); }
+  .bar u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--muted); opacity: .85; }
+  .sig { color: var(--accent); font-weight: 600; }
+  .ns { color: var(--muted); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 14px 16px; }
+  .card h3 { font-family: var(--font-display); font-size: 1rem; margin: 0 0 .3rem; }
+  .card p { font-size: .9rem; color: var(--muted); margin: 0; }
+  .big { font-family: var(--font-mono); font-size: 1.8rem; font-weight: 600; color: var(--accent);
+         font-variant-numeric: tabular-nums; display: block; margin-bottom: 2px; }
+
+  .toggle { position: fixed; top: env(safe-area-inset-top, 0px); right: 0; margin: 10px;
+    font: inherit; font-size: .75rem; font-family: var(--font-mono); cursor: pointer;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--rule);
+    border-radius: 3px; padding: 5px 9px; z-index: 5; }
+  ul { max-width: 68ch; padding-left: 1.1rem; }
+  li { margin-bottom: .4rem; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<button class="toggle" id="themeBtn" type="button">theme</button>
+
+<div class="wrap">
+  <p class="eyebrow">Drosophila male CNS · leaky integrate-and-fire</p>
+  <h1>Which neurons decide whether the fly sings?</h1>
+  <p class="lede">A male fruit fly courts by vibrating one wing to produce a song. The circuit runs
+    brain to muscle: <b>pC1</b> command neurons → <b>pIP10</b> descending neuron → <b>TN1/dPR1</b>
+    nerve-cord premotor → <b>wing motor neurons</b>. This runs that pathway as a spiking simulation on
+    the real connectome, then silences populations to see what breaks.</p>
+
+  <div class="stats" id="stats"></div>
+
+  <section>
+    <p class="eyebrow">Live recording</p>
+    <h2>Pick a lesion. Watch the song.</h2>
+    <p class="note" style="margin-bottom:18px">pC1 is driven at 150&nbsp;Hz for 200&nbsp;ms. Each strip is one
+      stage of the pathway on its own scale, the way a multi-channel rig displays it. Silencing is a
+      per-run mask — the connectome itself is never modified.</p>
+    <div class="rig">
+      <div class="rail" id="rail"><div class="rail-label">Condition</div></div>
+      <div class="scope">
+        <div class="scope-head">
+          <div class="readout" id="condName">intact</div>
+          <div class="readout">song output <b id="wingVal">0.00</b> Hz</div>
+        </div>
+        <canvas id="scope" aria-label="Firing-rate traces for each stage of the song pathway"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Result</p>
+    <h2>What silencing breaks</h2>
+    <p class="note" style="margin-bottom:16px">Every condition is compared against 50 random ablations of the
+      same size, matched on total outgoing synapses — because removing busy neurons weakens the song
+      whoever they are. The grey tick marks that matched null. p&nbsp;=&nbsp;0.020 is the floor at 50
+      draws and means no matched control came close.</p>
+    <div class="scroll"><table id="ablTable"></table></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Result</p>
+    <h2>The residual pulls both ways</h2>
+    <p class="note" style="margin-bottom:16px">The <i>fru</i>/<i>dsx</i>-unexplained residual, split by neuron
+      class. Only two classes move the song, and they are the two that connect brain to nerve cord.
+      Bars right of centre weaken the song; bars left of it make it louder.</p>
+    <div class="scroll"><table id="brkTable"></table></div>
+    <p class="note" style="margin-top:14px"><b>On that p&nbsp;=&nbsp;1.000 for cb_intrinsic:</b> the test is
+      one-sided for decreases, so a negative drop scores 1.0 by construction — not because the increase
+      was tested and found wanting. It is left untested rather than claimed.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Why the numbers are trustworthy</p>
+    <h2>Three checks that had to pass first</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Orientation</h3>
+        <p><b>Sensory 4.0, motor 0.01.</b> A transposed matrix leaves node count, edge count, density and
+          E/I ratio identical while inverting every result. Only biology notices: sensory cells must send
+          more than they receive, motor cells the reverse.</p>
+      </div>
+      <div class="card">
+        <h3>Specificity</h3>
+        <p><span class="big" id="specVal">—</span>The song readout responds to the courtship command this
+          many times more than to size-matched control populations. Turning the gain up gives a louder
+          signal and a worse experiment — at 0.275 the readout cannot tell courtship from noise at all.</p>
+      </div>
+      <div class="card">
+        <h3>Negative control</h3>
+        <p><span class="big">0.0%</span>490 optic-lobe residual neurons — more than half the entire
+          residual — change the song by exactly nothing. The method is not "remove neurons, output falls".</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Limits</p>
+    <h2>What this does not show</h2>
+    <ul>
+      <li><b>Not per-neuron dominance.</b> The residual's contribution is collective: per neuron the
+        <i>fru</i>/<i>dsx</i>-explained set is still stronger.</li>
+      <li><b>Not a courtship mechanism.</b> Wing-motor firing rate is a proxy for "singing". It says
+        nothing about song structure — the pulse and sine patterning the real circuit exists to produce.</li>
+      <li><b>Not independent of the model.</b> Every number rides on one gain constant, chosen for
+        specificity. Trust the ordering, not the percentages.</li>
+      <li><b>No synaptic delay or neuromodulation.</b> Transmission is instantaneous between timesteps and
+        monoamines are set to sign zero.</li>
+    </ul>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  if (!D) return;
+  var fmt = function (n) { return n.toLocaleString("en-US"); };
+
+  // ---- header stats ----
+  var m = D.meta;
+  document.getElementById("stats").innerHTML =
+    '<span><b>' + fmt(m.neurons) + '</b> neurons</span>' +
+    '<span><b>' + fmt(m.edges) + '</b> connections</span>' +
+    '<span><b>' + fmt(m.synapses) + '</b> synapses</span>' +
+    '<span><b>' + m.duration_ms + '</b> ms simulated</span>' +
+    '<span><b>' + m.stim_rate_hz + '</b> Hz stimulus</span>';
+
+  if (D.calibration) {
+    var row = D.calibration.sweep.filter(function (r) {
+      return Math.abs(r.gain - D.calibration.chosen_synapse_mv) < 1e-9; })[0];
+    if (row && row.specificity) {
+      document.getElementById("specVal").textContent = row.specificity.toFixed(0) + "×";
+    }
+  }
+
+  // ---- condition rail ----
+  var labels = Object.keys(D.traces);
+  var current = labels[0];
+  var rail = document.getElementById("rail");
+  labels.forEach(function (label) {
+    var b = document.createElement("button");
+    b.className = "cond";
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(label === current));
+    var n = D.traces[label].n_silenced;
+    b.innerHTML = '<span>' + label.replace(/\s*\(\d+\)$/, "") + '</span>' +
+      '<span class="n">' + (n ? n + " neurons silenced" : "nothing silenced") + '</span>';
+    b.addEventListener("click", function () {
+      current = label;
+      rail.querySelectorAll("button").forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      render(true);
+    });
+    rail.appendChild(b);
+  });
+
+  // ---- scope ----
+  var cv = document.getElementById("scope");
+  var ctx = cv.getContext("2d");
+  var stages = D.stages;
+  var nice = { pC1: "pC1 · command", pIP10: "pIP10 · descending", dPR1: "dPR1 · nerve cord",
+               TN1: "TN1 · premotor", wing_motor: "wing motor · SONG" };
+  // Fixed per-stage scale across conditions, so strips are comparable when switching.
+  var peak = {};
+  stages.forEach(function (s) {
+    var mx = 0;
+    labels.forEach(function (L) {
+      (D.traces[L].groups[s] || []).forEach(function (v) { if (v > mx) mx = v; });
+    });
+    peak[s] = mx || 1;
+  });
+
+  var sweep = 1, raf = null, t0 = 0;
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  function render(animate) {
+    if (animate) {
+      sweep = 0; t0 = performance.now();
+      if (raf) cancelAnimationFrame(raf);
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) { sweep = 1; draw(); }
+      else {
+        var step = function (t) {
+          sweep = Math.min(1, (t - t0) / 650);
+          draw();
+          if (sweep < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      }
+    } else { draw(); }
+    var tr = D.traces[current];
+    document.getElementById("condName").textContent = current;
+    document.getElementById("wingVal").textContent = tr.wing_hz.toFixed(2);
+  }
+
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var W = cv.clientWidth || 640;
+    var rowH = 62, padL = 118, padR = 58, padT = 6;
+    var H = padT + stages.length * rowH + 22;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    var cFg = css("--fg"), cMuted = css("--muted"), cGrid = css("--grid"),
+        cAccent = css("--accent"), cCool = css("--cool"), cDead = css("--dead");
+    var tr = D.traces[current], plotW = Math.max(40, W - padL - padR);
+
+    stages.forEach(function (s, i) {
+      var y0 = padT + i * rowH, h = rowH - 16;
+      var series = tr.groups[s] || [];
+      var isSong = s === "wing_motor";
+
+      ctx.strokeStyle = cGrid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, y0 + h + .5); ctx.lineTo(padL + plotW, y0 + h + .5); ctx.stroke();
+
+      ctx.fillStyle = cFg; ctx.font = "500 12px " + css("--font-mono");
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(nice[s] || s, padL - 12, y0 + h / 2);
+
+      var silent = series.every(function (v) { return v === 0; });
+      var col = silent ? cDead : (isSong ? cAccent : cCool);
+      var shown = Math.max(2, Math.ceil(series.length * sweep));
+
+      if (series.length) {
+        var xs = function (k) { return padL + (series.length === 1 ? 0 : k / (series.length - 1) * plotW); };
+        var ys = function (v) { return y0 + h - (v / peak[s]) * h; };
+        ctx.beginPath();
+        ctx.moveTo(xs(0), ys(series[0]));
+        for (var k = 1; k < shown && k < series.length; k++) ctx.lineTo(xs(k), ys(series[k]));
+        ctx.strokeStyle = col; ctx.lineWidth = isSong ? 2.4 : 1.6;
+        ctx.lineJoin = "round"; ctx.stroke();
+
+        ctx.lineTo(xs(Math.min(shown, series.length) - 1), y0 + h);
+        ctx.lineTo(xs(0), y0 + h); ctx.closePath();
+        ctx.globalAlpha = isSong ? .17 : .10; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+      }
+
+      var mean = series.length ? series.reduce(function (a, b) { return a + b; }, 0) / series.length : 0;
+      ctx.textAlign = "left"; ctx.fillStyle = silent ? cDead : cMuted;
+      ctx.font = "500 12px " + css("--font-mono");
+      ctx.fillText(silent ? "silent" : mean.toFixed(0) + " Hz", padL + plotW + 10, y0 + h / 2);
+    });
+
+    ctx.fillStyle = cMuted; ctx.font = "400 11px " + css("--font-mono");
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText("0 ms", padL, padT + stages.length * rowH - 4);
+    ctx.textAlign = "right";
+    ctx.fillText(D.meta.duration_ms + " ms", padL + plotW, padT + stages.length * rowH - 4);
+  }
+
+  document.getElementById("legend").textContent =
+    "each strip has its own vertical scale, fixed across conditions · right-hand figure is the mean rate";
+
+  // ---- tables ----
+  function barCell(v, nullV, scale) {
+    var half = 50, w = Math.min(half, Math.abs(v) / scale * half);
+    var nx = 50 + Math.max(-half, Math.min(half, nullV / scale * half));
+    return '<div class="bar"><i class="' + (v < 0 ? "neg" : "") + '" style="' +
+      (v < 0 ? "right:50%;" : "left:50%;") + "width:" + w + '%"></i>' +
+      '<u style="left:' + nx + '%"></u></div>';
+  }
+
+  if (D.ablation) {
+    var rows = D.ablation.conditions;
+    var scale = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.pct_drop); })) || 1;
+    var html = "<tr><th>condition</th><th>n</th><th>song drop</th><th>vs matched null</th><th>p</th></tr>";
+    rows.forEach(function (r) {
+      var sig = r.p_empirical < 0.05;
+      html += "<tr><td class='name'>" + r.condition + "</td><td>" + fmt(r.n_silenced) + "</td><td class='" +
+        (sig ? "sig" : "ns") + "'>" + r.pct_drop.toFixed(1) + "%</td><td>" +
+        barCell(r.pct_drop, 100 * r.null_drop_mean / D.ablation.baseline_wing_hz, scale) +
+        "</td><td class='" + (sig ? "sig" : "ns") + "'>" + r.p_empirical.toFixed(3) + "</td></tr>";
+    });
+    document.getElementById("ablTable").innerHTML = html;
+  }
+
+  if (D.breakdown) {
+    var br = D.breakdown.rows.slice().sort(function (a, b) { return b.pct_drop - a.pct_drop; });
+    var s2 = Math.max.apply(null, br.map(function (r) { return Math.abs(r.pct_drop); })) || 1;
+    var h2 = "<tr><th>residual class</th><th>n</th><th>song drop</th><th>vs matched null</th><th>p</th></tr>";
+    br.forEach(function (r) {
+      var sig = r.p_empirical < 0.05;
+      h2 += "<tr><td class='name'>" + r.superclass + "</td><td>" + fmt(r.n) + "</td><td class='" +
+        (sig ? "sig" : "ns") + "'>" + r.pct_drop.toFixed(1) + "%</td><td>" +
+        barCell(r.pct_drop, r.null_pct_drop_mean, s2) + "</td><td class='" +
+        (sig ? "sig" : "ns") + "'>" + r.p_empirical.toFixed(3) + "</td></tr>";
+    });
+    document.getElementById("brkTable").innerHTML = h2;
+  }
+
+  // ---- theme ----
+  var btn = document.getElementById("themeBtn");
+  btn.addEventListener("click", function () {
+    var dark = document.documentElement.getAttribute("data-theme") === "dark" ||
+      (!document.documentElement.getAttribute("data-theme") &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    draw();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { draw(); });
+
+  var rt; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { draw(); });
+  render(true);
+})();
+</script>
