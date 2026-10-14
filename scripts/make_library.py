@@ -28,7 +28,12 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.audio import audio_to_firing_rate, spikes_to_song, spikes_to_waveform, write_wav
+from courtship.audio import (
+    audio_to_firing_rate,
+    spikes_to_song,
+    spikes_to_waveform,
+    write_wav,
+)
 from courtship.circuit import normalize_annotations, resolve_groups, to_indices
 from courtship.lif import LIFParams, simulate
 
@@ -200,7 +205,7 @@ def main() -> None:
                 mean_hz = counts.sum() / len(idx) / (len(counts) * window_s)
                 index["entries"].append({
                     "sex": which, "condition": label, "stimulus": sname,
-                    "readout": readout, "n_readout": int(len(idx)),
+                    "readout": readout, "n_readout": len(idx),
                     "mean_hz": float(mean_hz), "reliability": rel,
                     "density_wav": f"{stem}_density.wav",
                     "pulses_wav": f"{stem}_pulses.wav",
