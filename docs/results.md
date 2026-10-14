@@ -202,6 +202,37 @@ present in one sex and absent in the other. That is a presence/absence
 fact, not a quantity with two values, so the honest output is the bulk
 null plus the statement that the bulk is the wrong place to look.
 
+## The input library, and the control that holds across all of it
+
+Five synthesised stimuli × four conditions, each averaged over 8 trials
+(`scripts/make_library.py`). Clarity is measured by **split-half
+reliability** — average the odd and even trials separately and correlate
+them. Anything reproducible across independent runs is signal; anything
+not is noise. It needs no knowledge of the "correct" answer, so it works
+on arbitrary audio.
+
+| condition | readout | mean rate | reliability |
+|---|---|---|---|
+| male, courting | wing motor | 23.9–26.5 Hz | +0.323 … **+0.754** |
+| female, hearing | descending | 5.1–5.4 Hz | +0.173 … +0.271 |
+| male, hearing | descending | 1.75–1.84 Hz | +0.226 … +0.401 |
+| male, **hearing only** | wing motor | 0.43–0.46 Hz | **−0.002 … +0.020** |
+
+**The last row is the result worth keeping.** Hearing *without* the
+courtship command produces no reproducible signal at the wing on any of
+five very different stimuli — the highest reliability across all of them
+is +0.020, and one is slightly negative. The same ears with pC1 engaged
+reach +0.754. A condition that ought to be silent measures silent, which
+is the strongest available evidence that the readout tracks the circuit
+rather than the stimulus.
+
+Mean rates barely move between stimuli within a condition (23.9–26.5 Hz
+across all five under courting), so the drive level sets the rate and the
+stimulus structure lives entirely in the **timing**. That is also why the
+density rendering carries pitch while the rate alone does not — and why
+the surrogate had to be validated on pitch tracking rather than
+correlation (`docs/surrogate.md`).
+
 ## What this does not show
 
 - **Not per-neuron dominance.** 7.2% over 89 neurons is 0.08% each;

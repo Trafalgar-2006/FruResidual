@@ -1,0 +1,83 @@
+{
+  "in_distribution_r_mean": 0.20749175472961137,
+  "in_distribution_r_std": 0.14253043259649598,
+  "pitch": [
+    {
+      "played": 180,
+      "simulated_hz": 360.0,
+      "surrogate_hz": 180.0,
+      "agree": false
+    },
+    {
+      "played": 250,
+      "simulated_hz": 250.0,
+      "surrogate_hz": 250.0,
+      "agree": true
+    },
+    {
+      "played": 330,
+      "simulated_hz": 330.0,
+      "surrogate_hz": 330.0,
+      "agree": true
+    },
+    {
+      "played": 440,
+      "simulated_hz": 440.0,
+      "surrogate_hz": 440.0,
+      "agree": true
+    },
+    {
+      "played": 600,
+      "simulated_hz": 600.0,
+      "surrogate_hz": 600.0,
+      "agree": true
+    },
+    {
+      "played": 800,
+      "simulated_hz": 800.0,
+      "surrogate_hz": 800.0,
+      "agree": true
+    }
+  ],
+  "pitch_agree": "5/6",
+  "out_of_distribution": [
+    {
+      "stimulus": "square_wave",
+      "r": 0.717049084977735,
+      "sim_hz": 220.0,
+      "surrogate_hz": 220.0
+    },
+    {
+      "stimulus": "sawtooth",
+      "r": 0.3849234558643556,
+      "sim_hz": 220.0,
+      "surrogate_hz": 220.0
+    },
+    {
+      "stimulus": "vibrato_fm",
+      "r": 0.7528267599281078,
+      "sim_hz": 312.0,
+      "surrogate_hz": 288.0
+    },
+    {
+      "stimulus": "inharmonic_cluster",
+      "r": 0.3556289174035733,
+      "sim_hz": 263.0,
+      "surrogate_hz": 263.0
+    },
+    {
+      "stimulus": "slow_clicks",
+      "r": -0.03437187033102556,
+      "sim_hz": 319.0,
+      "surrogate_hz": 340.0
+    },
+    {
+      "stimulus": "pink_noise",
+      "r": 0.24837133719316143,
+      "sim_hz": 306.0,
+      "surrogate_hz": 106.0
+    }
+  ],
+  "ood_r_mean": 0.4040712808393179,
+  "verdict": "NOT usable for arbitrary uploads -- keep the site on the library"
+}

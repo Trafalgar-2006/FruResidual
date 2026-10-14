@@ -22,6 +22,14 @@ Usage:  python scripts/train_surrogate.py [--data ...npz] [--epochs 40]
 
 from __future__ import annotations
 
+import os
+
+# conda-forge numpy and pip torch ship separate OpenMP runtimes on Windows;
+# without this the process aborts the moment both are loaded. Must be set
+# BEFORE torch is imported, which is why it sits above the import block.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+
 import argparse
 import json
 import sys

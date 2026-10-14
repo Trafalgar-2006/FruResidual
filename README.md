@@ -61,6 +61,14 @@ the same male merely listening is audibly silent (0.03 Hz). Sound alone
 does not release song — that takes P1, which is correct biology. The fly
 never reproduces the input: its wing is not a speaker.
 
+**A fast surrogate was tried and rejected.** A 39k-parameter causal network
+trained to imitate the simulation tracks 5 of 6 pure tones but collapses on
+anything temporally sparse or noise-like (slow clicks r=-0.03, pink noise
+off by threefold), and it smooths away the circuit's own rectification
+artefact — wrong by being nicer than what it imitates. Live upload is
+dropped; the site serves the precomputed library, which is the real
+simulation rather than an imitation of it.
+
 The motivating hypothesis for using a whole-CNS connectome — that
 brain-only models miss nerve-cord feedback — **failed its own control**
 (p=0.41) and is reported as a negative result.
@@ -79,7 +87,11 @@ Full detail, including what this model cannot support, is in
 | residual breakdown by class | done |
 | brain-only vs whole-CNS | done — **negative**, hypothesis failed its control |
 | audio in / song out | done |
-| female (FlyWire) comparison | downloading connectivity (852 MB) |
+| female (FlyWire) comparison | done — 2.2x in **both** sexes, see [docs/results.md](docs/results.md) |
+| batched simulation | done — 5.9x throughput, lesions per column |
+| precomputed input library | done — 20 entries, 4 MB, no GPU to serve |
+| fast surrogate model | done — **negative**, see [docs/surrogate.md](docs/surrogate.md) |
+| website | next, on the library |
 
 ## Relationship to FruResidual
 

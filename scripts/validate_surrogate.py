@@ -23,6 +23,14 @@ Usage:  python scripts/validate_surrogate.py
 
 from __future__ import annotations
 
+import os
+
+# conda-forge numpy and pip torch ship separate OpenMP runtimes on Windows;
+# without this the process aborts the moment both are loaded. Must be set
+# BEFORE torch is imported, which is why it sits above the import block.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+
 import argparse
 import json
 import sys
@@ -47,6 +55,30 @@ P = Path("C:/CourtshipData/processed")
 DATA = Path("C:/CourtshipData/surrogate")
 MODELS = Path(__file__).resolve().parents[1] / "models"
 SR = 22050
+
+
+TRIALS = 8
+
+
+def trial_mean(adj, stim, params, idx, series, dt, trials: int = TRIALS):
+    """Average `trials` independent runs to estimate the EXPECTED response.
+
+    The surrogate is trained with MSE, so it predicts the conditional mean.
+    Comparing it against a single stochastic run measures the model against
+    noise it was never asked to reproduce -- the library put single-trial
+    split-half reliability for this condition at 0.32-0.75, so one trial
+    barely correlates with itself. Averaging gives the quantity the
+    surrogate is actually approximating.
+    """
+    window_s = dt / 1000.0
+    acc = None
+    for s_ in range(trials):
+        r = simulate(adj, stim, params=params, stim_rate_series=series,
+                     record_every=0, track_groups={"w": idx}, bin_ms=dt,
+                     n_batch=series.shape[1], seed=s_)
+        c = r["group_traces_hz"]["w"] * len(idx) * window_s
+        acc = c if acc is None else acc + c
+    return acc / trials
 
 
 def peak_hz(sig: np.ndarray, step_sr: float, lo=80.0, hi=1200.0) -> float:
@@ -127,7 +159,6 @@ def main() -> None:
     stim = np.unique(np.concatenate([gi["JO"], gi["pC1"]]))
     idx = gi["wing_motor"]
     params = LIFParams(dt=dt, synapse_mv=float(d["gain"]))
-    window_s = dt / 1000.0
     t = np.arange(int(args.seconds * SR)) / SR
 
     print(f"\nPITCH  tones, surrogate vs the real simulation ({args.seconds}s each)")
@@ -136,9 +167,7 @@ def main() -> None:
     drives = [audio_to_firing_rate(np.sin(2 * np.pi * f * t).astype(np.float32),
                                    SR, dt, max_rate_hz=600.0, waveform=True)
               for f in tones]
-    r = simulate(adj, stim, params=params, stim_rate_series=np.stack(drives, axis=1),
-                 record_every=0, track_groups={"w": idx}, bin_ms=dt, n_batch=len(tones))
-    sim_counts = r["group_traces_hz"]["w"] * len(idx) * window_s
+    sim_counts = trial_mean(adj, stim, params, idx, np.stack(drives, axis=1), dt)
     hits = 0
     pitch_rows = []
     for k, f in enumerate(tones):
@@ -156,9 +185,7 @@ def main() -> None:
     oods = ood_stimuli(args.seconds)
     od = [audio_to_firing_rate(w, SR, dt, max_rate_hz=600.0, waveform=True)
           for w in oods.values()]
-    r2 = simulate(adj, stim, params=params, stim_rate_series=np.stack(od, axis=1),
-                  record_every=0, track_groups={"w": idx}, bin_ms=dt, n_batch=len(od))
-    sim2 = r2["group_traces_hz"]["w"] * len(idx) * window_s
+    sim2 = trial_mean(adj, stim, params, idx, np.stack(od, axis=1), dt)
     print(f"{'stimulus':<22}{'r':>8}{'sim peak':>11}{'surr peak':>11}")
     ood_rows, ood_cors = [], []
     for k, name in enumerate(oods):
@@ -168,8 +195,14 @@ def main() -> None:
         ood_cors.append(c)
         ood_rows.append({"stimulus": name, "r": c, "sim_hz": sp_, "surrogate_hz": su_})
         print(f"{name:<22}{c:>8.3f}{sp_:>11.0f}{su_:>11.0f}")
+    # Deliberately NOT compared against the in-distribution number above.
+    # That one is measured against single noisy trials from the stored
+    # dataset; these are measured against an 8-trial average. Different
+    # ground truths, so the two correlations are not on the same scale and
+    # putting them side by side invites exactly the wrong conclusion.
     print(f"  -> mean r = {np.mean(ood_cors):.3f} "
-          f"(in-distribution was {np.mean(cors):.3f})")
+          f"(vs an 8-trial average; the in-distribution figure above uses "
+          f"single trials and is not comparable)")
 
     verdict = ("usable for arbitrary uploads"
                if np.mean(ood_cors) > 0.6 and hits >= len(tones) - 1
