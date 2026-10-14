@@ -50,6 +50,43 @@ WING_MOTOR_NEUROMERE = r"T2|MesoN"
 READOUT = "wing_motor"
 
 
+# FlyWire's annotation table uses different column names and a coarser
+# super_class vocabulary than MaleCNS. Mapped here so one circuit
+# definition serves both datasets -- two copies would be free to drift,
+# and the whole male/female comparison rests on "the same group" meaning
+# the same thing on both sides.
+FLYWIRE_COLUMNS = {"bodyId": "root_id", "type": "cell_type", "superclass": "super_class"}
+FLYWIRE_DESCENDING = ("descending",)
+MALECNS_DESCENDING = ("descending_neuron",)
+
+
+def normalize_annotations(ann: pd.DataFrame) -> pd.DataFrame:
+    """Return a frame with MaleCNS-style column names, whichever dataset
+    it came from. Leaves a MaleCNS frame untouched."""
+    if "bodyId" in ann.columns:
+        return ann
+    missing = [v for v in FLYWIRE_COLUMNS.values() if v not in ann.columns]
+    if missing:
+        raise ValueError(f"unrecognised annotation table; missing {missing}")
+    out = ann.rename(columns={v: k for k, v in FLYWIRE_COLUMNS.items()}).copy()
+    if "somaNeuromere" not in out.columns:
+        out["somaNeuromere"] = None  # brain-only: no neuromeres to filter on
+    return out
+
+
+def descending_ids(ann: pd.DataFrame) -> np.ndarray:
+    """Descending neurons, the one pathway stage both datasets contain.
+
+    FlyWire is brain-only, so pIP10, TN1, dPR1 and the wing motor neurons
+    are all absent; descending neurons are present in both (1,314 male vs
+    1,303 female) and are the brain's output channel. That makes them the
+    only honest shared readout for a male/female comparison.
+    """
+    a = normalize_annotations(ann)
+    classes = set(FLYWIRE_DESCENDING) | set(MALECNS_DESCENDING)
+    return a.loc[a["superclass"].isin(classes), "bodyId"].to_numpy()
+
+
 def resolve_groups(ann: pd.DataFrame) -> dict[str, np.ndarray]:
     """Map each named group to the bodyIds matching it in `ann`.
 
@@ -57,12 +94,17 @@ def resolve_groups(ann: pd.DataFrame) -> dict[str, np.ndarray]:
     pathway (e.g. a brain-only connectome, which has no VNC) yields fewer
     keys rather than silently-empty ones.
     """
+    ann = normalize_annotations(ann)
     out: dict[str, np.ndarray] = {}
     types = ann["type"].astype(str)
     for name, pat in GROUPS.items():
         hit = ann.loc[types.str.match(pat, na=False), "bodyId"].to_numpy()
         if len(hit):
             out[name] = hit
+
+    desc = descending_ids(ann)
+    if len(desc):
+        out["descending"] = desc
 
     motor = ann[ann["superclass"].isin(WING_MOTOR_CLASSES)]
     if "somaNeuromere" in motor.columns:

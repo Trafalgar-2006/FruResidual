@@ -179,3 +179,42 @@ def simulate(
 def group_rate(rates: np.ndarray, idx: np.ndarray) -> float:
     """Mean firing rate (Hz) over a neuron group."""
     return float(rates[idx].mean()) if len(idx) else float("nan")
+
+
+def calibrate_to_population_rate(
+    adj: sp.csr_matrix,
+    stim_idx: np.ndarray,
+    target_hz: float = 0.6,
+    lo: float = 1e-4,
+    hi: float = 0.5,
+    duration_ms: float = 100.0,
+    iters: int = 14,
+    device: str | None = None,
+) -> tuple[float, float]:
+    """Bisect `synapse_mv` until the whole-network mean firing rate hits
+    `target_hz` under the given stimulus.
+
+    Needed for any cross-dataset comparison. The gain multiplies raw
+    synapse COUNTS, and two connectomes reconstructed by different groups
+    with different synapse detection do not share a weight distribution --
+    MaleCNS and FlyWire certainly do not. Running both at one fixed gain
+    would make every male/female difference partly an artefact of that
+    mismatch. Calibrating each network to the same operating point
+    removes it: afterwards the networks are equally excitable overall, so
+    a difference in a SPECIFIC pathway is about wiring, not drive.
+
+    Returns (synapse_mv, achieved_population_hz). Monotone in gain, so
+    bisection is safe.
+    """
+    best = (hi, float("nan"))
+    for _ in range(iters):
+        mid = (lo + hi) / 2
+        r = simulate(adj, stim_idx, duration_ms=duration_ms,
+                     params=LIFParams(synapse_mv=mid), record_every=0, device=device)
+        rate = float(r["rates_hz"].mean())
+        best = (mid, rate)
+        if rate < target_hz:
+            lo = mid
+        else:
+            hi = mid
+    return best
