@@ -10,6 +10,7 @@ Usage:  python scripts/make_demo_data.py
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -93,9 +94,27 @@ def main() -> None:
         else:
             print(f"  (skipping {name}: not generated yet)")
 
+    # Audio lives beside the demo rather than in the bundle: the page plays
+    # the WAV files directly, so only their names need to travel in JSON.
+    audio_src = Path(__file__).resolve().parents[1] / "reports" / "audio"
+    if (audio_src / "audio_results.json").exists():
+        bundle["audio"] = json.loads((audio_src / "audio_results.json").read_text())
+        dest = Path(__file__).resolve().parents[1] / "demo" / "audio"
+        dest.mkdir(parents=True, exist_ok=True)
+        for wav in audio_src.glob("*.wav"):
+            shutil.copy2(wav, dest / wav.name)
+        print(f"  copied {len(list(dest.glob('*.wav')))} wav files to demo/audio/")
+    else:
+        print("  (skipping audio: run scripts/run_audio.py first)")
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(bundle))
     print(f"\nwrote {OUT}  ({OUT.stat().st_size/1024:.0f} KB)")
+
+    # The demo page loads its data as a plain script, so no fetch is needed.
+    demo_js = Path(__file__).resolve().parents[1] / "demo" / "data.js"
+    demo_js.write_text("window.DEMO=" + json.dumps(bundle, separators=(",", ":")) + ";")
+    print(f"wrote {demo_js}  ({demo_js.stat().st_size/1024:.0f} KB)")
 
 
 if __name__ == "__main__":

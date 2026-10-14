@@ -137,6 +137,20 @@
     </div>
   </section>
 
+  <section id="audioSection" hidden>
+    <p class="eyebrow">Audio</p>
+    <h2>Play a sound into its ears</h2>
+    <p class="note" style="margin-bottom:18px">Johnston's organ in the antenna is the fly's ear. A sound's
+      envelope sets those neurons' firing rate, the connectome runs, and wing-motor spikes become pulses —
+      which is how a wing actually makes sound. The fly does <b>not</b> reproduce the input: what you hear
+      follows its rhythm and loudness, never its pitch.</p>
+    <div class="cards" id="audioCards"></div>
+    <p class="note" style="margin-top:14px"><b>Sound alone does not make a male sing.</b> Driving the ears
+      leaves pC1, pIP10 and the wing motor neurons at exactly 0&nbsp;Hz. Song is released through P1 by
+      pheromone and context, not by hearing — so the singing condition holds P1 active, a male already
+      courting who is hearing something.</p>
+  </section>
+
   <section>
     <p class="eyebrow">Result</p>
     <h2>What silencing breaks</h2>
@@ -342,6 +356,31 @@
 
   document.getElementById("legend").textContent =
     "each strip has its own vertical scale, fixed across conditions · right-hand figure is the mean rate";
+
+  // ---- audio ----
+  if (D.audio && D.audio.results && D.audio.results.length) {
+    var sec = document.getElementById("audioSection");
+    sec.hidden = false;
+    var nice = {
+      courting: ["Courting male", "ears + P1 command → wing motor. He sings along."],
+      hearing: ["Hearing", "ears only → descending output, the brain's channel to the body."],
+      hearing_only: ["Hearing, not courting", "ears only → wing motor. Silent."]
+    };
+    var cards = document.getElementById("audioCards");
+    var html = '<div class="card"><h3>What it heard</h3>' +
+      '<p style="margin-bottom:10px">' + D.audio.seconds.toFixed(1) + ' s of ' +
+      (D.audio.input || "audio") + ', band-passed to what a fly can hear.</p>' +
+      '<audio controls preload="none" style="width:100%" src="audio/input_as_heard.wav"></audio></div>';
+    D.audio.results.forEach(function (r) {
+      var meta = nice[r.condition] || [r.condition, r.readout];
+      html += '<div class="card"><h3>' + meta[0] +
+        (r.sex === "female" ? " (female)" : "") + '</h3>' +
+        '<span class="big">' + r.mean_hz.toFixed(2) + ' Hz</span>' +
+        '<p style="margin-bottom:10px">' + meta[1] + '</p>' +
+        '<audio controls preload="none" style="width:100%" src="audio/' + r.wav + '"></audio></div>';
+    });
+    cards.innerHTML = html;
+  }
 
   // ---- tables ----
   function barCell(v, nullV, scale) {
