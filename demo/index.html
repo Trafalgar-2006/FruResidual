@@ -173,6 +173,22 @@
       was tested and found wanting. It is left untested rather than claimed.</p>
   </section>
 
+  <section id="sexSection" hidden>
+    <p class="eyebrow">Male vs female</p>
+    <h2>The same command, in both brains</h2>
+    <p class="note" style="margin-bottom:18px">FlyWire (female) is brain-only: pIP10, TN1, dPR1 and every
+      wing motor neuron are simply absent, so song cannot be measured there at all. The one stage both
+      datasets contain is the <b>descending population</b>, and it is almost perfectly size-matched —
+      1,314 male against 1,303 female. Each network is bisected to the same population firing rate first,
+      because the two were reconstructed by different groups and their raw gains differ threefold.</p>
+    <div class="scroll"><table id="sexTable"></table></div>
+    <p class="note" style="margin-top:14px"><b>This null is probably the readout's fault, not biology.</b>
+      The mean runs over 1,314 descending neurons while the dimorphism that matters here is pIP10 —
+      <b>2 neurons</b>, diluted roughly 650-fold. And pIP10, TN1 and dPR1 have no female counterpart at
+      all: they are present in one sex and absent in the other, which is a presence/absence fact rather
+      than a quantity with two values.</p>
+  </section>
+
   <section>
     <p class="eyebrow">Why the numbers are trustworthy</p>
     <h2>Three checks that had to pass first</h2>
@@ -380,6 +396,26 @@
         '<audio controls preload="none" style="width:100%" src="audio/' + r.wav + '"></audio></div>';
     });
     cards.innerHTML = html;
+  }
+
+  // ---- male vs female ----
+  if (D.sex && D.sex.natural_size) {
+    document.getElementById("sexSection").hidden = false;
+    var ns = D.sex.natural_size;
+    var h = "<tr><th>sex</th><th>pC1 neurons</th><th>pC1 &rarr; descending</th>" +
+      "<th>random stimulus, same size</th><th>ratio</th></tr>";
+    ["male", "female"].forEach(function (k) {
+      var r = ns[k];
+      if (!r) return;
+      h += "<tr><td class='name'>" + k + "</td><td>" + fmt(r.n_pC1) + "</td><td class='sig'>" +
+        r.pC1_hz.toFixed(2) + " Hz</td><td>" + r.control_hz.toFixed(2) +
+        " &plusmn; " + r.control_std.toFixed(2) + " Hz</td><td class='sig'>" +
+        (r.ratio == null ? "&infin;" : r.ratio.toFixed(1) + "×") + "</td></tr>";
+    });
+    var g = "<tr><td class='name' style='color:var(--muted)'>calibrated gain</td><td></td><td>" +
+      (D.sex.male_gain ? D.sex.male_gain.toFixed(5) + " (male)" : "") + "</td><td>" +
+      (D.sex.female_gain ? D.sex.female_gain.toFixed(5) + " (female)" : "") + "</td><td></td></tr>";
+    document.getElementById("sexTable").innerHTML = h + g;
   }
 
   // ---- tables ----

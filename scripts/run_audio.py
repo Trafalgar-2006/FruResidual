@@ -104,6 +104,36 @@ def main() -> None:
                          "envelope only its loudness")
     args = ap.parse_args()
 
+    # Each connectome needs its own gain. MaleCNS and FlyWire were built by
+    # different groups with different synapse detection, so one fixed value
+    # leaves the female network far less excitable and manufactures a "sex
+    # difference" that is pure calibration. Gains come from
+    # run_sex_comparison.py, which bisects each network to a common
+    # population firing rate.
+    # The male runs on his FULL network here (wing motor lives in the nerve
+    # cord), so he takes the full-network gain that calibrate_gain.py
+    # validated on specificity -- 128x the courtship command over matched
+    # controls. The brain-only gain from run_sex_comparison would be the
+    # wrong configuration and measurably muddier (57x contrast between
+    # courting and merely hearing at 0.02, against 8.6x at 0.0298).
+    #
+    # The female has no full-network equivalent to validate against, so she
+    # takes her population-matched gain. The two are therefore NOT matched
+    # to each other: cross-sex rates here are a demonstration, and the
+    # quantitative comparison lives in run_sex_comparison.py.
+    gains = {"male": LIFParams().synapse_mv, "female": LIFParams().synapse_mv}
+    cal = P / "calibration.json"
+    if cal.exists():
+        gains["male"] = json.loads(cal.read_text())["chosen_synapse_mv"]
+    sexcmp = P / "sex_comparison.json"
+    if sexcmp.exists():
+        c = json.loads(sexcmp.read_text())
+        if c.get("female_gain"):
+            gains["female"] = c["female_gain"]
+    print("per-network gains: " + ", ".join(f"{k}={v:.5f}" for k, v in gains.items()))
+    print("  (not matched to each other -- see run_sex_comparison.py for the "
+          "controlled cross-sex comparison)")
+
     params = LIFParams(dt=args.dt)
     samples, sr = load_audio(args.audio, target_sr=SR)
     samples = samples[:int(min(len(samples), args.seconds * sr))]
@@ -125,7 +155,7 @@ def main() -> None:
     write_wav(OUT / "input_as_heard.wav", samples, sr)
     window_s = params.dt / 1000.0
     summary = {"input": Path(args.audio).name, "seconds": len(samples) / sr,
-               "max_jo_rate_hz": args.max_rate, "dt_ms": params.dt,
+               "max_jo_rate_hz": args.max_rate, "dt_ms": params.dt, "gains": gains,
                "input_envelope": envelope(drive), "results": []}
 
     def run(adj, stim, gi, readout, label, which, also_stim=None):
@@ -134,8 +164,10 @@ def main() -> None:
         # pC1 is held at its own command rate, so it cannot ride the audio
         # envelope; only the ears do. Co-stimulating both from one series
         # would make the "courting" male's song a direct echo of the input.
-        r = simulate(adj, stim_all, params=params, stim_rate_series=drive,
-                     record_every=0, track_groups={readout: idx}, bin_ms=params.dt)
+        r = simulate(adj, stim_all,
+                     params=LIFParams(dt=args.dt, synapse_mv=gains[which]),
+                     stim_rate_series=drive, record_every=0,
+                     track_groups={readout: idx}, bin_ms=params.dt)
         counts = np.array(r["group_traces_hz"][readout]) * len(idx) * window_s
         # Two renderings, because they answer different questions.
         # _pulses: what a wing physically radiates -- one fixed-carrier pulse
