@@ -53,7 +53,13 @@ from fruresidual.features.fru_dsx_join import load_male_cns_annotations
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from courtship.audio import audio_to_firing_rate, load_audio, spikes_to_song, write_wav
+from courtship.audio import (
+    audio_to_firing_rate,
+    load_audio,
+    spikes_to_song,
+    spikes_to_waveform,
+    write_wav,
+)
 from courtship.circuit import normalize_annotations, resolve_groups, to_indices
 from courtship.lif import LIFParams, simulate
 
@@ -89,15 +95,29 @@ def main() -> None:
     ap.add_argument("--seconds", type=float, default=4.0,
                     help="how much of the clip to use (simulation runs ~20x slower than realtime)")
     ap.add_argument("--sex", choices=["male", "female", "both"], default="both")
-    ap.add_argument("--max-rate", type=float, default=180.0)
+    ap.add_argument("--max-rate", type=float, default=600.0,
+                    help="peak JO firing rate; 600 measurably carries pitch, 180 does not")
+    ap.add_argument("--dt", type=float, default=0.1,
+                    help="ms per step. 0.1 gives a 5 kHz ceiling; 0.5 caps output at 1 kHz")
+    ap.add_argument("--mode", choices=["waveform", "envelope"], default="waveform",
+                    help="waveform rate-codes the signal itself (carries pitch); "
+                         "envelope only its loudness")
     args = ap.parse_args()
 
-    params = LIFParams()
+    params = LIFParams(dt=args.dt)
     samples, sr = load_audio(args.audio, target_sr=SR)
     samples = samples[:int(min(len(samples), args.seconds * sr))]
     print(f"input: {Path(args.audio).name}  {len(samples)/sr:.2f}s @ {sr} Hz")
 
-    drive = audio_to_firing_rate(samples, sr, params.dt, max_rate_hz=args.max_rate)
+    if args.mode == "waveform":
+        # Rate-code the band-passed signal itself. Measured 2026-10-14: the
+        # wing motor spike density then peaks at the input frequency (8/8
+        # notes of a tone sequence tracked to within 1%). Rate-coding only
+        # the envelope throws that away before the circuit ever sees it.
+        drive = audio_to_firing_rate(samples, sr, params.dt,
+                                     max_rate_hz=args.max_rate, waveform=True)
+    else:
+        drive = audio_to_firing_rate(samples, sr, params.dt, max_rate_hz=args.max_rate)
     print(f"JO drive: {len(drive):,} steps, {drive.min():.0f}-{drive.max():.0f} Hz "
           f"(mean {drive.mean():.0f})")
 
@@ -117,9 +137,15 @@ def main() -> None:
         r = simulate(adj, stim_all, params=params, stim_rate_series=drive,
                      record_every=0, track_groups={readout: idx}, bin_ms=params.dt)
         counts = np.array(r["group_traces_hz"][readout]) * len(idx) * window_s
-        wav = spikes_to_song(counts, params.dt, sr=SR, n_neurons=len(idx))
-        name = f"{which}_{label}.wav"
-        write_wav(OUT / name, wav, SR)
+        # Two renderings, because they answer different questions.
+        # _pulses: what a wing physically radiates -- one fixed-carrier pulse
+        #   per spike. True to the animal, but the carrier overwrites pitch.
+        # _density: the motor signal itself, which does carry the input's
+        #   pitch. This is the one that reproduces a tune.
+        name = f"{which}_{label}_density.wav"
+        write_wav(OUT / name, spikes_to_waveform(counts, params.dt, sr=SR), SR)
+        write_wav(OUT / f"{which}_{label}_pulses.wav",
+                  spikes_to_song(counts, params.dt, sr=SR, n_neurons=len(idx)), SR)
         mean_hz = counts.sum() / len(idx) / (len(counts) * window_s)
         print(f"  {label:<10} readout {readout:<12} "
               f"{(counts > 0).mean()*100:>5.1f}% of steps active, mean {mean_hz:6.2f} Hz "

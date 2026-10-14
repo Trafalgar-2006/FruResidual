@@ -3,7 +3,13 @@
 import numpy as np
 import pytest
 
-from courtship.audio import JO_BAND_HZ, audio_to_firing_rate, spikes_to_song, write_wav
+from courtship.audio import (
+    JO_BAND_HZ,
+    audio_to_firing_rate,
+    spikes_to_song,
+    spikes_to_waveform,
+    write_wav,
+)
 
 
 def tone(hz, seconds=0.5, sr=22050, amp=1.0):
@@ -91,3 +97,70 @@ def test_wav_roundtrips(tmp_path):
     sr, back = wavfile.read(p)
     assert sr == 22050
     assert len(back) == len(wav)
+
+
+def test_waveform_mode_carries_frequency_envelope_mode_does_not():
+    # The whole point of waveform mode: the drive must oscillate at the
+    # input's frequency. Envelope mode gives a near-constant rate for a
+    # steady tone, which is why it cannot carry pitch.
+    x, sr = tone(250, seconds=0.3)
+    wave = audio_to_firing_rate(x, sr, 0.1, waveform=True)
+    env = audio_to_firing_rate(x, sr, 0.1, waveform=False)
+
+    def peak_hz(sig, step_sr):
+        sig = sig - sig.mean()
+        spec = np.abs(np.fft.rfft(sig))
+        fr = np.fft.rfftfreq(len(sig), 1 / step_sr)
+        band = fr > 20
+        return fr[band][np.argmax(spec[band])]
+
+    assert peak_hz(wave, 10000) == pytest.approx(250, rel=0.1)
+    assert wave.std() > env.std() * 5
+
+
+def test_waveform_drive_stays_non_negative():
+    x, sr = tone(250)
+    assert audio_to_firing_rate(x, sr, 0.1, waveform=True).min() >= 0
+
+
+def test_density_rendering_preserves_input_frequency():
+    # A spike density oscillating at 300 Hz must render to audio whose
+    # dominant frequency is 300 Hz -- unlike spikes_to_song, which imposes
+    # its own fixed carrier on everything.
+    dt, n = 0.1, 6000              # 0.6 s at 10 kHz
+    t = np.arange(n) * dt / 1000.0
+    counts = np.maximum(0, np.sin(2 * np.pi * 300 * t)) * 5
+    sr = 22050
+    wav = spikes_to_waveform(counts, dt, sr=sr)
+    spec = np.abs(np.fft.rfft(wav))
+    fr = np.fft.rfftfreq(len(wav), 1 / sr)
+    band = (fr > 80) & (fr < 2000)
+    assert fr[band][np.argmax(spec[band])] == pytest.approx(300, rel=0.08)
+
+
+def test_pulse_rendering_also_keeps_the_rate_but_adds_carrier_colour():
+    # Both renderings keep the repetition frequency -- the pulse RATE is
+    # itself the signal, which is also how real fly song encodes structure.
+    # The difference is timbre: the pulse version adds energy at its own
+    # 250 Hz carrier that was never in the input. Pitch is lost on the
+    # INPUT side by taking an envelope, not here.
+    dt, n = 0.1, 6000
+    t = np.arange(n) * dt / 1000.0
+    counts = np.maximum(0, np.sin(2 * np.pi * 300 * t)) * 5
+    sr = 22050
+
+    def spectrum(wav):
+        spec = np.abs(np.fft.rfft(wav))
+        fr = np.fft.rfftfreq(len(wav), 1 / sr)
+        band = (fr > 80) & (fr < 2000)
+        return fr[band], spec[band]
+
+    fr_p, sp_p = spectrum(spikes_to_song(counts, dt, sr=sr, n_neurons=5))
+    fr_d, sp_d = spectrum(spikes_to_waveform(counts, dt, sr=sr))
+    assert fr_p[np.argmax(sp_p)] == pytest.approx(300, rel=0.08)
+    assert fr_d[np.argmax(sp_d)] == pytest.approx(300, rel=0.08)
+
+    def carrier_share(fr, sp):
+        return sp[(fr > 230) & (fr < 270)].sum() / sp.sum()
+
+    assert carrier_share(fr_p, sp_p) > carrier_share(fr_d, sp_d)

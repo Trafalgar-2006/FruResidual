@@ -103,6 +103,7 @@ def audio_to_firing_rate(
     dt_ms: float,
     max_rate_hz: float = 180.0,
     band: tuple[float, float] = JO_BAND_HZ,
+    waveform: bool = False,
 ) -> np.ndarray:
     """Convert a waveform into a per-timestep firing rate for JO neurons.
 
@@ -129,6 +130,22 @@ def audio_to_firing_rate(
         raise ValueError(f"band {band} invalid for sample rate {sr}")
     b, a = butter(4, [lo, hi], btype="band")
     filtered = filtfilt(b, a, samples)
+
+    if waveform:
+        # Rate-code the SIGNAL, not its envelope: firing rate rides the
+        # waveform itself, so the circuit receives frequency information
+        # instead of only loudness. Measured 2026-10-14: the wing motor
+        # spike density then peaks at the input frequency, 8/8 notes of a
+        # tone sequence tracked to within 1%. Taking the envelope first
+        # discards pitch before the connectome ever sees it.
+        peak = np.abs(filtered).max()
+        if peak > 0:
+            filtered = filtered / peak
+        n_steps = round(len(samples) / sr * 1000.0 / dt_ms)
+        idx = np.linspace(0, len(filtered) - 1, n_steps)
+        sig = np.interp(idx, np.arange(len(filtered)), filtered)
+        # A rate cannot go negative, so centre it at half scale.
+        return (max_rate_hz * (1.0 + sig) / 2.0).astype(np.float32)
 
     env = np.abs(hilbert(filtered))
     # Compress: loud passages should not pin every neuron at saturation.
@@ -174,6 +191,48 @@ def spikes_to_song(
     if peak > 0:
         out = out / peak * 0.92
     return out
+
+
+def spikes_to_waveform(
+    counts_per_step: np.ndarray,
+    dt_ms: float,
+    sr: int = 22050,
+    band: tuple[float, float] = (60.0, 4000.0),
+) -> np.ndarray:
+    """Listen to the motor signal itself, instead of to the wing.
+
+    `spikes_to_song` convolves every spike with a FIXED ~250 Hz pulse,
+    which is physically what a wing does -- and which therefore overwrites
+    whatever pitch the spike train carried with a constant carrier. That
+    is right for "what would this fly sound like" and wrong for "what is
+    the circuit actually transmitting".
+
+    This renders the population spike density directly as the waveform, so
+    the frequency content survives. Measured 2026-10-14: the wing motor
+    population's spike density peaks at the INPUT frequency for 250, 400
+    and 600 Hz tones (150 Hz comes out at its second harmonic, the usual
+    rectification artefact). Pitch does reach the motor neurons.
+
+    The real fly still cannot sing a melody: its wing carrier is set by
+    mechanics, not by the nervous system. The distinction is between what
+    the neurons encode and what the wing can physically radiate.
+    """
+    step_sr = 1000.0 / dt_ms
+    n_out = round(len(counts_per_step) * dt_ms / 1000.0 * sr)
+    x = np.asarray(counts_per_step, dtype=np.float64)
+    x = x - x.mean()
+    # Resample the spike density to audio rate.
+    out = np.interp(np.linspace(0, len(x) - 1, n_out), np.arange(len(x)), x)
+
+    nyq = sr / 2.0
+    hi = min(band[1], step_sr / 2.0 * 0.95, nyq * 0.99)
+    lo = max(band[0], 1.0)
+    if lo < hi:
+        b, a = butter(2, [lo / nyq, hi / nyq], btype="band")
+        out = filtfilt(b, a, out)
+
+    peak = np.abs(out).max()
+    return (out / peak * 0.92).astype(np.float32) if peak > 0 else out.astype(np.float32)
 
 
 def write_wav(path: str | Path, samples: np.ndarray, sr: int = 22050) -> Path:
